@@ -59,7 +59,9 @@ class HomeScreen extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => ExploreScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const ExploreScreen(),
+                        ),
                       );
                     },
                     icon: const Icon(Icons.explore),
