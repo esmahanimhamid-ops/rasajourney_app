@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "345121728894",
+    "project_id": "rasajourney-90da8",
+    "storage_bucket": "rasajourney-90da8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:345121728894:android:888a68a3235b0843276b2f",
+        "android_client_info": {
+          "package_name": "com.esmahanim.rasajourney_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTTFJPvbEeEpE4uDC2pmXsmqPMAZiScuI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:345121728894:android:e96be0b00bf48b60276b2f",
+        "android_client_info": {
+          "package_name": "com.example.rasajourney_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTTFJPvbEeEpE4uDC2pmXsmqPMAZiScuI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
