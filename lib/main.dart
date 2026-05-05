@@ -4,6 +4,7 @@ import 'screens/home_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/ar_screen.dart';
 import 'screens/favourites_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,10 +21,8 @@ class rasajourney_app extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Gastronomy Tourism Perlis',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepOrange),
-        useMaterial3: true,
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.buildTheme(),
       home: const MainNav(),
     );
   }
@@ -48,7 +47,22 @@ class _MainNavState extends State<MainNav> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_index],
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppTheme.cream,
+              AppTheme.warmWhite,
+            ],
+          ),
+        ),
+        child: IndexedStack(
+          index: _index,
+          children: _screens,
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),

@@ -1,0 +1,9 @@
+<!-- Add this activity inside the host app's <application> after unityLibrary is integrated. -->
+<activity
+    android:name="com.esmahanim.rasajourney_app.unity.UnityARActivity"
+    android:configChanges="fontScale|keyboard|keyboardHidden|locale|layoutDirection|navigation|orientation|screenLayout|screenSize|smallestScreenSize|touchscreen|uiMode"
+    android:exported="false"
+    android:hardwareAccelerated="true"
+    android:launchMode="singleTask"
+    android:screenOrientation="portrait"
+    android:theme="@style/UnityThemeSelector" />
