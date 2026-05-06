@@ -9,22 +9,26 @@ import 'platform_config_service.dart';
 class GooglePlaceDetails {
   final String? address;
   final String? imageUrl;
+  final List<String> galleryImages;
   final double? rating;
   final int? ratingCount;
   final List<String> reviews;
   final List<String> operatingHours;
   final bool? isOpen;
   final String? status;
+  final String? restaurantType;
 
   const GooglePlaceDetails({
     this.address,
     this.imageUrl,
+    this.galleryImages = const [],
     this.rating,
     this.ratingCount,
     this.reviews = const [],
     this.operatingHours = const [],
     this.isOpen,
     this.status,
+    this.restaurantType,
   });
 }
 
@@ -45,6 +49,9 @@ class GooglePlacesService {
     final enrichedRestaurant = restaurant.copyWith(
       address: _prefer(details.address, restaurant.address),
       image: _prefer(details.imageUrl, restaurant.image),
+      galleryImages: details.galleryImages.isNotEmpty
+          ? details.galleryImages
+          : restaurant.galleryImages,
       rating: details.rating ?? restaurant.rating,
       ratingCount: details.ratingCount ?? restaurant.ratingCount,
       reviews: details.reviews.isNotEmpty ? details.reviews : restaurant.reviews,
@@ -56,6 +63,8 @@ class GooglePlacesService {
         _displayStatus(details.status, details.isOpen),
         restaurant.status,
       ),
+      restaurantType:
+          _prefer(details.restaurantType, restaurant.restaurantType),
     );
 
     if (restaurant.id.isNotEmpty) {
@@ -66,6 +75,8 @@ class GooglePlacesService {
           'locationText': details.address,
         if (details.imageUrl != null && details.imageUrl!.isNotEmpty)
           'imageUrl': details.imageUrl,
+        if (details.galleryImages.isNotEmpty)
+          'galleryImages': details.galleryImages,
         if (details.rating != null) 'rating': details.rating,
         if (details.ratingCount != null) 'ratingCount': details.ratingCount,
         if (details.reviews.isNotEmpty) 'reviews': details.reviews,
@@ -74,6 +85,9 @@ class GooglePlacesService {
         if (details.isOpen != null) 'isOpen': details.isOpen,
         if (details.status != null && details.status!.isNotEmpty)
           'status': details.status,
+        if (details.restaurantType != null &&
+            details.restaurantType!.isNotEmpty)
+          'restaurantType': details.restaurantType,
         'lastPlacesSyncAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     }
@@ -91,7 +105,7 @@ class GooglePlacesService {
       placeId,
       apiKey: apiKey,
       fields:
-          'formatted_address,rating,user_ratings_total,reviews,opening_hours,current_opening_hours,business_status,photos',
+          'formatted_address,rating,user_ratings_total,reviews,opening_hours,current_opening_hours,business_status,photos,types',
       reviewsSort: 'newest',
     );
     final currentOpeningHours =
@@ -108,27 +122,30 @@ class GooglePlacesService {
         .take(3)
         .toList();
     final photos = (result['photos'] as List?) ?? const [];
+    final galleryImages = <String>[];
 
-    String? imageUrl;
-    if (photos.isNotEmpty) {
-      final firstPhoto = photos.first as Map<String, dynamic>;
-      final photoReference = firstPhoto['photo_reference']?.toString();
+    for (final photo in photos.take(5)) {
+      final photoMap = photo as Map;
+      final photoReference = photoMap['photo_reference']?.toString();
       if (photoReference != null && photoReference.isNotEmpty) {
-        imageUrl = Uri.https(
-          'maps.googleapis.com',
-          '/maps/api/place/photo',
-          {
-            'maxwidth': '1200',
-            'photo_reference': photoReference,
-            'key': apiKey,
-          },
-        ).toString();
+        galleryImages.add(
+          Uri.https(
+            'maps.googleapis.com',
+            '/maps/api/place/photo',
+            {
+              'maxwidth': '1200',
+              'photo_reference': photoReference,
+              'key': apiKey,
+            },
+          ).toString(),
+        );
       }
     }
 
     return GooglePlaceDetails(
       address: result['formatted_address']?.toString(),
-      imageUrl: imageUrl,
+      imageUrl: galleryImages.isNotEmpty ? galleryImages.first : null,
+      galleryImages: galleryImages,
       rating: (result['rating'] as num?)?.toDouble(),
       ratingCount: (result['user_ratings_total'] as num?)?.toInt(),
       reviews: reviews,
@@ -137,6 +154,7 @@ class GooglePlacesService {
           (currentOpeningHours?['open_now'] ?? regularOpeningHours?['open_now'])
               as bool?,
       status: result['business_status']?.toString(),
+      restaurantType: _mapGooglePlaceTypes(result['types']),
     );
   }
 
@@ -258,5 +276,19 @@ class GooglePlacesService {
       default:
         return status;
     }
+  }
+
+  String? _mapGooglePlaceTypes(dynamic value) {
+    final types = _toStringList(value).map((item) => item.toLowerCase()).toList();
+
+    if (types.contains('cafe')) {
+      return 'Cafe & Coffee';
+    }
+
+    if (types.contains('meal_takeaway') || types.contains('meal_delivery')) {
+      return 'Fast Food';
+    }
+
+    return null;
   }
 }

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:csv/csv.dart';
 import 'package:flutter/services.dart';
 
+import '../models/restaurant.dart';
+
 class RestaurantImportResult {
   final int sourceRows;
   final int importedRestaurants;
@@ -112,21 +114,41 @@ class RestaurantImportService {
     for (final entry in groupedRestaurants.entries) {
       final restaurant = entry.value;
       final docRef = _firestore.collection('restaurants').doc(entry.key);
-
-      batch.set(docRef, {
+      final normalizedRestaurant = Restaurant.fromMap({
         'placeId': restaurant.placeId,
         'name': restaurant.name,
         'address': restaurant.address,
         'locationText': restaurant.address,
         'lat': restaurant.lat,
         'lng': restaurant.lng,
-        'location': GeoPoint(restaurant.lat, restaurant.lng),
         'rating': restaurant.averageRating,
         'ratingCount': restaurant.ratingCount,
         'reviews': restaurant.reviews,
         'status': restaurant.status,
         'isOpen': restaurant.openNow,
         'operatingHours': restaurant.operatingHours,
+      }, id: entry.key);
+
+      batch.set(docRef, {
+        'placeId': normalizedRestaurant.placeId,
+        'name': normalizedRestaurant.name,
+        'address': normalizedRestaurant.address,
+        'locationText': normalizedRestaurant.address,
+        'lat': normalizedRestaurant.lat,
+        'lng': normalizedRestaurant.lng,
+        'location': GeoPoint(
+          normalizedRestaurant.lat,
+          normalizedRestaurant.lng,
+        ),
+        'rating': normalizedRestaurant.rating,
+        'ratingCount': normalizedRestaurant.ratingCount,
+        'reviews': normalizedRestaurant.reviews,
+        'status': normalizedRestaurant.status,
+        'isOpen': normalizedRestaurant.isOpen,
+        'operatingHours': normalizedRestaurant.operatingHours,
+        'restaurantType': normalizedRestaurant.restaurantType,
+        'halalStatus': normalizedRestaurant.halalStatus,
+        'menuItems': normalizedRestaurant.menuItems,
         'source': 'kaggle_csv',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));

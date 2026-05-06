@@ -799,6 +799,8 @@ class _ReviewsTab extends StatelessWidget {
           itemBuilder: (context, index) {
             final data = docs[index].data();
             final rating = (data['rating'] as num?)?.toDouble() ?? 0;
+            final deliciousScale =
+                (data['deliciousScale'] as num?)?.toDouble() ?? 0;
             final reviewText = (data['text'] ?? '').toString().trim();
             final timestamp = data['timestamp'] as Timestamp?;
 
@@ -877,6 +879,26 @@ class _ReviewsTab extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (deliciousScale > 0) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.local_fire_department_outlined,
+                            size: 18,
+                            color: Color(0xFFD45720),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Delicious scale ${deliciousScale.toInt()}/5',
+                            style: const TextStyle(
+                              color: Color(0xFFD45720),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     Row(
                       children: List.generate(

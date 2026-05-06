@@ -48,12 +48,16 @@ class UserContentService {
       'name': restaurant.name,
       'address': restaurant.address,
       'image': restaurant.image,
+      'galleryImages': restaurant.galleryImages,
       'lat': restaurant.lat,
       'lng': restaurant.lng,
       'rating': restaurant.rating,
       'ratingCount': restaurant.ratingCount,
       'status': restaurant.status,
       'isOpen': restaurant.isOpen,
+      'restaurantType': restaurant.restaurantType,
+      'halalStatus': restaurant.halalStatus,
+      'menuItems': restaurant.menuItems,
       'savedAt': FieldValue.serverTimestamp(),
     });
 
@@ -64,6 +68,7 @@ class UserContentService {
     required User user,
     required Restaurant restaurant,
     required double rating,
+    required double deliciousScale,
     required String text,
   }) async {
     await AuthService.syncUserProfile(user);
@@ -78,6 +83,7 @@ class UserContentService {
       'restaurantName': restaurant.name,
       'restaurantAddress': restaurant.address,
       'rating': rating,
+      'deliciousScale': deliciousScale,
       'text': text,
       'timestamp': FieldValue.serverTimestamp(),
     };
