@@ -25,5 +25,27 @@ bin/
 ### VS Code ###
 .vscode/
 
+# Flutter
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Unity (VERY IMPORTANT)
+.vs/
+Library/
+Temp/
+Obj/
+Build/
+Logs/
+UserSettings/
+
+# Android Studio
+.idea/
+*.iml
+
+# Local config
+android/local.properties
+
 ### Mac OS ###
 .DS_Store
