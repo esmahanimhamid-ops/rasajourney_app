@@ -39,18 +39,15 @@ class Restaurant {
     required this.galleryImages,
   });
 
-  factory Restaurant.fromMap(
-    Map<String, dynamic> data, {
-    String id = '',
-  }) {
+  factory Restaurant.fromMap(Map<String, dynamic> data, {String id = ''}) {
     final geoPoint = data['location'] as GeoPoint?;
     final latValue = data['lat'] ?? geoPoint?.latitude ?? 0.0;
     final lngValue = data['lng'] ?? geoPoint?.longitude ?? 0.0;
     final addressValue =
         data['address'] ??
-            data['locationText'] ??
-            data['vicinity'] ??
-            'Location unavailable';
+        data['locationText'] ??
+        data['vicinity'] ??
+        'Location unavailable';
     final isOpenValue = _parseIsOpen(data);
     final reviews = _toStringList(data['reviews']);
     final image = (data['image'] ?? data['imageUrl'] ?? '').toString();
@@ -283,7 +280,8 @@ class Restaurant {
     required String address,
     required List<String> reviews,
   }) {
-    final explicitType = data['restaurantType'] ??
+    final explicitType =
+        data['restaurantType'] ??
         data['type'] ??
         data['category'] ??
         data['cuisineType'] ??
@@ -293,7 +291,163 @@ class Restaurant {
       return _normalizeRestaurantType(explicitType.trim());
     }
 
+    final normalizedName = name.toLowerCase();
     final haystack = '$name $address ${reviews.join(' ')}'.toLowerCase();
+
+    if (_containsAny(normalizedName, const [
+      'hai thien',
+      'hai tian',
+      'hai xian',
+      'fan dian',
+      'an ke an',
+      'cha can shi',
+      'yun nan',
+      'mian',
+      'mian guan',
+      'mian dang',
+      'a jiu',
+      'choo zhen li',
+      'huang cheng',
+      'te chang',
+      'you tiao',
+      'angellye',
+      'ai ge lai',
+      'kopitiam',
+    ])) {
+      return 'Chinese Cuisine';
+    }
+
+    if (_containsAny(normalizedName, const [
+      'thai',
+      'tomyam',
+      'tom yam',
+      'siam',
+    ])) {
+      return 'Thai';
+    }
+
+    if (_containsAny(normalizedName, const [
+      'nasi kandar',
+      'curry house',
+      'malabari',
+      'mariammah',
+      'briyani',
+      'biryani',
+      'capati',
+    ])) {
+      return 'Indian Cuisine';
+    }
+
+    if (_containsAny(normalizedName, const [
+      'pizza hut',
+      'kfc',
+      'mcd',
+      'mcdonald',
+      'burger king',
+      'domino',
+    ])) {
+      return 'Fast Food';
+    }
+
+    if (_containsAny(normalizedName, const [
+      'western',
+      'burger',
+      'pizza',
+      'steak',
+    ])) {
+      return 'Western';
+    }
+
+    if (_containsAny(normalizedName, const [
+      'ikan bakar',
+      'bbq',
+      'barbecue',
+      'grill',
+    ])) {
+      return 'BBQ & Grill';
+    }
+
+    if (_containsAny(haystack, const [
+      'chinese',
+      'hai thien',
+      'hai tian',
+      'hai xian',
+      'fan dian',
+      'an ke an',
+      'cha can shi',
+      'yun nan',
+      'mian',
+      'mian guan',
+      'mian dang',
+      'a jiu',
+      'choo zhen li',
+      'huang cheng',
+      'te chang',
+      'you tiao',
+      'angellye',
+      'ai ge lai',
+      'dim sum',
+      'dimsum',
+      'char siew',
+      'bak kut teh',
+      'wonton',
+      'dumpling',
+      'yee mee',
+      'curry mee',
+      'dry noodles',
+      'kuey teow',
+      'kuay teow',
+      'koey teow',
+      'char kuey teow',
+      'char kuay teow',
+      'char koay teow',
+      'kopitiam',
+    ])) {
+      return 'Chinese Cuisine';
+    }
+
+    if (_containsAny(haystack, const [
+      'thai',
+      'tomyam',
+      'tom yam',
+      'siam',
+      'laksa lemak siam',
+      'kerabu mangga',
+    ])) {
+      return 'Thai';
+    }
+
+    if (_containsAny(haystack, const [
+      'indian',
+      'curry house',
+      'malabari',
+      'mariammah',
+      'mamak',
+      'nasi kandar',
+      'briyani',
+      'biryani',
+      'capati',
+      'chapati',
+      'roti canai',
+      'roti telur',
+      'tosai',
+      'thosai',
+      'naan',
+      'tandoori',
+      'banana leaf',
+    ])) {
+      return 'Indian Cuisine';
+    }
+
+    if (_containsAny(haystack, const [
+      'korean',
+      'koria',
+      'kimchi',
+      'tteokbokki',
+      'toboki',
+    ])) {
+      return 'Korean Cuisine';
+    }
 
     if (_containsAny(haystack, const [
       'bbq',
@@ -321,19 +475,6 @@ class Restaurant {
     }
 
     if (_containsAny(haystack, const [
-      'western',
-      'steak',
-      'pasta',
-      'lamb chop',
-      'chicken chop',
-      'fish and chips',
-      'burger',
-      'pizza',
-    ])) {
-      return 'Western';
-    }
-
-    if (_containsAny(haystack, const [
       'fast food',
       'mcd',
       'mcdonald',
@@ -347,43 +488,30 @@ class Restaurant {
     }
 
     if (_containsAny(haystack, const [
-      'thai',
-      'tomyam',
-      'tom yam',
-      'siam',
-      'kerabu mangga',
+      'western',
+      'steak',
+      'pasta',
+      'lamb chop',
+      'chicken chop',
+      'fish and chips',
+      'burger',
+      'pizza',
     ])) {
-      return 'Thai';
+      return 'Western';
     }
 
     if (_containsAny(haystack, const [
-      'indian',
-      'roti canai',
-      'tosai',
-      'thosai',
-      'naan',
-      'tandoori',
-      'banana leaf',
-      'biryani',
-      'mamak',
-      'nasi kandar',
+      'seafood',
+      'shellout',
+      'crab',
+      'ketam',
+      'udang',
+      'siput',
+      'sotong',
+      'lala',
+      'kupang',
     ])) {
-      return 'Indian Cuisine';
-    }
-
-    if (_containsAny(haystack, const [
-      'chinese',
-      'dim sum',
-      'dimsum',
-      'char siew',
-      'bak kut teh',
-      'wonton',
-      'dumpling',
-      'yee mee',
-      'fried rice',
-      'kopitiam',
-    ])) {
-      return 'Chinese Cuisine';
+      return 'Seafood';
     }
 
     if (_containsAny(haystack, const [
@@ -406,7 +534,28 @@ class Restaurant {
       return 'Street Food';
     }
 
-    return 'Authentic Malay Cuisine';
+    if (_containsAny(haystack, const [
+      'malay',
+      'melayu',
+      'masakan melayu',
+      'masakan kampung',
+      'kampung',
+      'gulai',
+      'nasi lemak',
+      'nasi campur',
+      'laksa',
+      'ulam',
+      'sambal',
+      'sup tulang',
+      'ikan keli',
+      'pulut udang',
+      'kedai makan',
+      'restoran melayu',
+    ])) {
+      return 'Authentic Malay Cuisine';
+    }
+
+    return 'Local Cuisine';
   }
 
   static String _normalizeRestaurantType(String value) {
@@ -418,21 +567,28 @@ class Restaurant {
       'fast food': 'Fast Food',
       'authentic malay cuisine': 'Authentic Malay Cuisine',
       'malay cuisine': 'Authentic Malay Cuisine',
+      'local cuisine': 'Local Cuisine',
       'chinese cuisine': 'Chinese Cuisine',
       'indian cuisine': 'Indian Cuisine',
+      'korean cuisine': 'Korean Cuisine',
       'thai': 'Thai',
+      'thai cuisine': 'Thai',
       'cafe & coffee': 'Cafe & Coffee',
       'cafe and coffee': 'Cafe & Coffee',
       'bbq & grill': 'BBQ & Grill',
       'bbq and grill': 'BBQ & Grill',
+      'seafood': 'Seafood',
+      'seafood restaurant': 'Seafood',
     };
 
     return knownTypes[normalized] ??
         value
             .split(RegExp(r'\s+'))
-            .map((word) => word.isEmpty
-                ? word
-                : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}')
+            .map(
+              (word) => word.isEmpty
+                  ? word
+                  : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}',
+            )
             .join(' ');
   }
 
@@ -443,7 +599,10 @@ class Restaurant {
     required String restaurantType,
   }) {
     final explicitValue =
-        data['halalStatus'] ?? data['halal'] ?? data['halal_status'];
+        data['halalStatus'] ??
+        data['halaStatus'] ??
+        data['halal'] ??
+        data['halal_status'];
 
     if (explicitValue is bool) {
       return explicitValue ? 'Halal' : 'Non-halal';
@@ -495,7 +654,11 @@ class Restaurant {
     }
 
     if (restaurantType == 'Authentic Malay Cuisine' &&
-        _containsAny(haystack, const ['nasi lemak', 'masakan kampung', 'ikan bakar'])) {
+        _containsAny(haystack, const [
+          'nasi lemak',
+          'masakan kampung',
+          'ikan bakar',
+        ])) {
       return 'Halal';
     }
 
@@ -552,7 +715,11 @@ class Restaurant {
       case 'Fast Food':
         return const ['Burger', 'Fried chicken', 'Combo meals'];
       default:
-        return const ['Local rice dishes', 'Noodle dishes', 'Signature specials'];
+        return const [
+          'Local rice dishes',
+          'Noodle dishes',
+          'Signature specials',
+        ];
     }
   }
 

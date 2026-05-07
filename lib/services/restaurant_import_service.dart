@@ -18,7 +18,7 @@ class RestaurantImportResult {
 
 class RestaurantImportService {
   RestaurantImportService({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -38,10 +38,7 @@ class RestaurantImportService {
         'restaurant',
         'name',
       ]);
-      final placeId = _readValue(row, const [
-        'place_id',
-        'placeid',
-      ]);
+      final placeId = _readValue(row, const ['place_id', 'placeid']);
       final address = _readValue(row, const [
         'location',
         'address',
@@ -54,14 +51,26 @@ class RestaurantImportService {
         'reviews',
         'text',
       ]);
-      final status = _readValue(row, const [
-        'status',
-        'business_status',
+      final status = _readValue(row, const ['status', 'business_status']);
+      final halalStatus = _readValue(row, const [
+        'halalstatus',
+        'halastatus',
+        'halal_status',
+        'halal',
+        'is_halal',
+        'ishalal',
       ]);
-      final openNow = _readValue(row, const [
-        'is_open',
-        'open_now',
+      final restaurantType = _readValue(row, const [
+        'restauranttype',
+        'restaurant_type',
+        'cuisinetype',
+        'cuisine_type',
+        'foodtype',
+        'food_type',
+        'category',
+        'type',
       ]);
+      final openNow = _readValue(row, const ['is_open', 'open_now']);
       final operatingHours = _readValue(row, const [
         'operating_hours',
         'opening_hours',
@@ -70,9 +79,7 @@ class RestaurantImportService {
       final rating = _tryParseDouble(
         _readValue(row, const ['rating', 'ratings', 'stars']),
       );
-      final lat = _tryParseDouble(
-        _readValue(row, const ['latitude', 'lat']),
-      );
+      final lat = _tryParseDouble(_readValue(row, const ['latitude', 'lat']));
       final lng = _tryParseDouble(
         _readValue(row, const ['longitude', 'langitude', 'lng', 'lon', 'long']),
       );
@@ -92,6 +99,8 @@ class RestaurantImportService {
           lat: lat,
           lng: lng,
           status: status,
+          halalStatus: halalStatus,
+          restaurantType: restaurantType,
           openNow: _tryParseBool(openNow),
           operatingHours: _parseHours(operatingHours),
         ),
@@ -103,6 +112,8 @@ class RestaurantImportService {
         review: review,
         rating: rating,
         status: status,
+        halalStatus: halalStatus,
+        restaurantType: restaurantType,
         openNow: _tryParseBool(openNow),
         operatingHours: _parseHours(operatingHours),
       );
@@ -125,6 +136,8 @@ class RestaurantImportService {
         'ratingCount': restaurant.ratingCount,
         'reviews': restaurant.reviews,
         'status': restaurant.status,
+        'halalStatus': restaurant.halalStatus,
+        'restaurantType': restaurant.restaurantType,
         'isOpen': restaurant.openNow,
         'operatingHours': restaurant.operatingHours,
       }, id: entry.key);
@@ -175,7 +188,11 @@ class RestaurantImportService {
 
   String? _readValue(dynamic row, List<String> candidateHeaders) {
     for (final header in row.headerMap.keys) {
-      final normalizedHeader = header.toString().trim().toLowerCase();
+      final normalizedHeader = header
+          .toString()
+          .replaceFirst('\uFEFF', '')
+          .trim()
+          .toLowerCase();
       if (candidateHeaders.contains(normalizedHeader)) {
         final value = row[header]?.toString().trim();
         if (value != null && value.isNotEmpty) {
@@ -240,6 +257,8 @@ class _RestaurantAggregate {
     required this.lat,
     required this.lng,
     required this.status,
+    required this.halalStatus,
+    required this.restaurantType,
     required this.openNow,
     required this.operatingHours,
   });
@@ -250,6 +269,8 @@ class _RestaurantAggregate {
   final double lat;
   final double lng;
   String? status;
+  String? halalStatus;
+  String? restaurantType;
   bool? openNow;
   final List<String> operatingHours;
   final List<double> _ratings = [];
@@ -261,6 +282,8 @@ class _RestaurantAggregate {
     String? review,
     double? rating,
     String? status,
+    String? halalStatus,
+    String? restaurantType,
     bool? openNow,
     List<String>? operatingHours,
   }) {
@@ -278,6 +301,18 @@ class _RestaurantAggregate {
         status != null &&
         status.isNotEmpty) {
       this.status = status;
+    }
+
+    if ((this.halalStatus == null || this.halalStatus!.isEmpty) &&
+        halalStatus != null &&
+        halalStatus.isNotEmpty) {
+      this.halalStatus = halalStatus;
+    }
+
+    if ((this.restaurantType == null || this.restaurantType!.isEmpty) &&
+        restaurantType != null &&
+        restaurantType.isNotEmpty) {
+      this.restaurantType = restaurantType;
     }
 
     if (this.openNow == null && openNow != null) {

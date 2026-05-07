@@ -10,10 +10,7 @@ import '../theme/app_theme.dart';
 class RestaurantDetailScreen extends StatefulWidget {
   final Restaurant restaurant;
 
-  const RestaurantDetailScreen({
-    super.key,
-    required this.restaurant,
-  });
+  const RestaurantDetailScreen({super.key, required this.restaurant});
 
   @override
   State<RestaurantDetailScreen> createState() => _RestaurantDetailScreenState();
@@ -105,38 +102,34 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
     final statusForeground = restaurant.isOpen == true
         ? const Color(0xFF2F7A4A)
         : restaurant.isOpen == false
-            ? const Color(0xFF9D3243)
-            : AppTheme.mutedBrown;
+        ? const Color(0xFF9D3243)
+        : AppTheme.mutedBrown;
     final statusBackground = restaurant.isOpen == true
         ? const Color(0xFFE8F7EE)
         : restaurant.isOpen == false
-            ? const Color(0xFFFFEAEF)
-            : const Color(0xFFFFF5E9);
+        ? const Color(0xFFFFEAEF)
+        : const Color(0xFFFFF5E9);
     final halalForeground = restaurant.halalStatus == 'Halal'
         ? const Color(0xFF2F7A4A)
         : restaurant.halalStatus == 'Non-halal'
-            ? const Color(0xFF9D3243)
-            : AppTheme.mutedBrown;
+        ? const Color(0xFF9D3243)
+        : AppTheme.mutedBrown;
     final halalBackground = restaurant.halalStatus == 'Halal'
         ? const Color(0xFFE8F7EE)
         : restaurant.halalStatus == 'Non-halal'
-            ? const Color(0xFFFFEAEF)
-            : const Color(0xFFFFF5E9);
+        ? const Color(0xFFFFEAEF)
+        : const Color(0xFFFFF5E9);
+    final hasKnownHalalStatus = restaurant.hasKnownHalalStatus;
     final galleryImages = restaurant.galleryImages;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(restaurant.name),
-      ),
+      appBar: AppBar(title: Text(restaurant.name)),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.cream,
-              AppTheme.warmWhite,
-            ],
+            colors: [AppTheme.cream, AppTheme.warmWhite],
           ),
         ),
         child: SafeArea(
@@ -214,14 +207,15 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                             backgroundColor: AppTheme.blush,
                             foregroundColor: AppTheme.clay,
                           ),
-                          _InfoChip(
-                            icon: restaurant.halalStatus == 'Non-halal'
-                                ? Icons.no_food_rounded
-                                : Icons.verified_outlined,
-                            label: restaurant.halalStatus,
-                            backgroundColor: halalBackground,
-                            foregroundColor: halalForeground,
-                          ),
+                          if (hasKnownHalalStatus)
+                            _InfoChip(
+                              icon: restaurant.halalStatus == 'Non-halal'
+                                  ? Icons.no_food_rounded
+                                  : Icons.verified_outlined,
+                              label: restaurant.halalStatus,
+                              backgroundColor: halalBackground,
+                              foregroundColor: halalForeground,
+                            ),
                           _InfoChip(
                             icon: Icons.schedule_rounded,
                             label: restaurant.status,
@@ -255,7 +249,8 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                           backgroundColor: const Color(0xFFFFF3E0),
                         ),
                       ),
-                    if (restaurant.placeId != null && restaurant.placeId!.isNotEmpty)
+                    if (restaurant.placeId != null &&
+                        restaurant.placeId!.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                         child: Text(
@@ -289,8 +284,9 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFFFF5EA),
-                                          borderRadius:
-                                              BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
                                         ),
                                         child: Text(
                                           item,
@@ -313,14 +309,17 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                             'Check whether the restaurant fits your next visit plan.',
                         icon: Icons.access_time_rounded,
                         child: restaurant.operatingHours.isEmpty
-                            ? const Text('Operating hours are not available yet.')
+                            ? const Text(
+                                'Operating hours are not available yet.',
+                              )
                             : Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: restaurant.operatingHours
                                     .map(
                                       (hours) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 8),
+                                        padding: const EdgeInsets.only(
+                                          bottom: 8,
+                                        ),
                                         child: Text(hours),
                                       ),
                                     )
@@ -343,13 +342,15 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                                     .map(
                                       (review) => Container(
                                         width: double.infinity,
-                                        margin:
-                                            const EdgeInsets.only(bottom: 12),
+                                        margin: const EdgeInsets.only(
+                                          bottom: 12,
+                                        ),
                                         padding: const EdgeInsets.all(14),
                                         decoration: BoxDecoration(
                                           color: const Color(0xFFFFF8F2),
-                                          borderRadius:
-                                              BorderRadius.circular(18),
+                                          borderRadius: BorderRadius.circular(
+                                            18,
+                                          ),
                                         ),
                                         child: Text(
                                           review,
@@ -381,7 +382,10 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                               ),
                               child: GoogleMap(
                                 initialCameraPosition: CameraPosition(
-                                  target: LatLng(restaurant.lat, restaurant.lng),
+                                  target: LatLng(
+                                    restaurant.lat,
+                                    restaurant.lng,
+                                  ),
                                   zoom: 15,
                                 ),
                                 markers: {
@@ -391,8 +395,9 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                                       restaurant.lat,
                                       restaurant.lng,
                                     ),
-                                    infoWindow:
-                                        InfoWindow(title: restaurant.name),
+                                    infoWindow: InfoWindow(
+                                      title: restaurant.name,
+                                    ),
                                   ),
                                 },
                               ),
@@ -474,9 +479,8 @@ class _PhotoGalleryHeader extends StatelessWidget {
                       color: AppTheme.clay,
                     ),
                   ),
-                  errorWidget: (_, __, ___) => _DetailHero(
-                    restaurant: restaurant,
-                  ),
+                  errorWidget: (_, __, ___) =>
+                      _DetailHero(restaurant: restaurant),
                 );
               },
             ),
@@ -549,9 +553,7 @@ class _PhotoGalleryHeader extends StatelessWidget {
 }
 
 class _DetailHero extends StatelessWidget {
-  const _DetailHero({
-    required this.restaurant,
-  });
+  const _DetailHero({required this.restaurant});
 
   final Restaurant restaurant;
 
@@ -563,10 +565,7 @@ class _DetailHero extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFFFFA726),
-            Color(0xFFD84315),
-          ],
+          colors: [Color(0xFFFFA726), Color(0xFFD84315)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -731,10 +730,7 @@ class _NoticeCard extends StatelessWidget {
         color: backgroundColor,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text(
-        text,
-        style: TextStyle(color: foregroundColor),
-      ),
+      child: Text(text, style: TextStyle(color: foregroundColor)),
     );
   }
 }

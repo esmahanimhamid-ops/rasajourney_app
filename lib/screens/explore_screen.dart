@@ -10,6 +10,7 @@ import '../models/restaurant.dart';
 import '../screens/auth_screen.dart';
 import '../services/auth_service.dart';
 import '../services/restaurant_cleanup_service.dart';
+import '../services/restaurant_import_service.dart';
 import '../services/user_content_service.dart';
 import '../theme/app_theme.dart';
 import 'restaurant_detail_screen.dart';
@@ -27,11 +28,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   Restaurant? selectedRestaurant;
   bool _isCleaningClosedRestaurants = false;
+  bool _isImportingRestaurants = false;
   bool _nearMeOnly = false;
   bool _isLocatingUser = false;
   LatLng? _userLocation;
   String? _selectedTypeFilter;
   String? _selectedAreaFilter;
+  String? _selectedHalalStatusFilter;
 
   static const LatLng _perlisCenter = LatLng(6.4449, 100.2048);
   static const double _nearMeRadiusKm = 10;
@@ -53,18 +56,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
   List<Restaurant> _filterRestaurants(List<Restaurant> restaurants) {
     final query = _searchController.text.trim().toLowerCase();
     final filtered = restaurants.where((restaurant) {
-      final matchesQuery = query.isEmpty ||
+      final matchesQuery =
+          query.isEmpty ||
           restaurant.name.toLowerCase().contains(query) ||
           restaurant.address.toLowerCase().contains(query) ||
           restaurant.restaurantType.toLowerCase().contains(query) ||
+          restaurant.halalStatus.toLowerCase().contains(query) ||
           _extractAreaLabel(restaurant.address).toLowerCase().contains(query);
 
-      final matchesType = _selectedTypeFilter == null ||
+      final matchesType =
+          _selectedTypeFilter == null ||
           restaurant.restaurantType == _selectedTypeFilter;
-      final matchesArea = _selectedAreaFilter == null ||
+      final matchesArea =
+          _selectedAreaFilter == null ||
           _extractAreaLabel(restaurant.address) == _selectedAreaFilter;
+      final matchesHalalStatus =
+          _selectedHalalStatusFilter == null ||
+          restaurant.halalStatus == _selectedHalalStatusFilter;
 
-      final matchesNearMe = !_nearMeOnly ||
+      final matchesNearMe =
+          !_nearMeOnly ||
           (_userLocation != null &&
               _distanceKm(
                     _userLocation!,
@@ -72,7 +83,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ) <=
                   _nearMeRadiusKm);
 
-      return matchesQuery && matchesType && matchesArea && matchesNearMe;
+      return matchesQuery &&
+          matchesType &&
+          matchesArea &&
+          matchesHalalStatus &&
+          matchesNearMe;
     }).toList();
 
     if (_nearMeOnly && _userLocation != null) {
@@ -80,12 +95,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         (a, b) => _distanceKm(
           _userLocation!,
           LatLng(a.lat, a.lng),
-        ).compareTo(
-          _distanceKm(
-            _userLocation!,
-            LatLng(b.lat, b.lng),
-          ),
-        ),
+        ).compareTo(_distanceKm(_userLocation!, LatLng(b.lat, b.lng))),
       );
     }
 
@@ -125,23 +135,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   List<String> _availableTypes(List<Restaurant> restaurants) {
-    final values = restaurants
-        .map((restaurant) => restaurant.restaurantType.trim())
-        .where((value) => value.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final values =
+        restaurants
+            .map((restaurant) => restaurant.restaurantType.trim())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     return values;
   }
 
   List<String> _availableAreas(List<Restaurant> restaurants) {
-    final values = restaurants
-        .map((restaurant) => _extractAreaLabel(restaurant.address))
-        .where((value) => value != 'Area unavailable')
-        .toSet()
-        .toList()
-      ..sort();
+    final values =
+        restaurants
+            .map((restaurant) => _extractAreaLabel(restaurant.address))
+            .where((value) => value != 'Area unavailable')
+            .toSet()
+            .toList()
+          ..sort();
     return values;
+  }
+
+  List<String> _availableHalalStatuses() {
+    return const ['Halal', 'Non-halal'];
   }
 
   Future<void> _showFilterSheet(List<Restaurant> restaurants) async {
@@ -153,8 +169,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
         return _FilterSheet(
           availableTypes: _availableTypes(restaurants),
           availableAreas: _availableAreas(restaurants),
+          availableHalalStatuses: _availableHalalStatuses(),
           initialType: _selectedTypeFilter,
           initialArea: _selectedAreaFilter,
+          initialHalalStatus: _selectedHalalStatusFilter,
           initialNearMeOnly: _nearMeOnly,
         );
       },
@@ -167,6 +185,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     setState(() {
       _selectedTypeFilter = result.type;
       _selectedAreaFilter = result.area;
+      _selectedHalalStatusFilter = result.halalStatus;
     });
 
     if (result.nearMeOnly != _nearMeOnly) {
@@ -240,11 +259,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
         _nearMeOnly = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString()),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     } finally {
       if (mounted) {
         setState(() {
@@ -258,9 +275,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RestaurantDetailScreen(
-          restaurant: restaurant,
-        ),
+        builder: (_) => RestaurantDetailScreen(restaurant: restaurant),
       ),
     );
   }
@@ -353,9 +368,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not update favourite: $error'),
-        ),
+        SnackBar(content: Text('Could not update favourite: $error')),
       );
     }
   }
@@ -526,25 +539,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Review saved for ${restaurant.name}.'),
-        ),
+        SnackBar(content: Text('Review saved for ${restaurant.name}.')),
       );
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not save review: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save review: $error')));
     }
   }
 
   Future<void> _deletePermanentlyClosedRestaurants() async {
-    final shouldContinue = await showDialog<bool>(
+    final shouldContinue =
+        await showDialog<bool>(
           context: context,
           builder: (context) {
             return AlertDialog(
@@ -654,15 +664,49 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
       Navigator.of(context, rootNavigator: true).pop();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Cleanup failed: $error'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Cleanup failed: $error')));
     } finally {
       if (mounted) {
         setState(() {
           _isCleaningClosedRestaurants = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _importRestaurantsFromCsv() async {
+    setState(() {
+      _isImportingRestaurants = true;
+    });
+
+    try {
+      final result = await RestaurantImportService().importFromAsset();
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'CSV import complete: ${result.importedRestaurants} restaurants updated, ${result.skippedRows} rows skipped.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not import restaurants CSV: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isImportingRestaurants = false;
         });
       }
     }
@@ -783,6 +827,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
     }
 
+    if (_selectedHalalStatusFilter != null) {
+      chips.add(
+        _ActiveFilterChipData(
+          label: _selectedHalalStatusFilter!,
+          onRemoved: () {
+            setState(() {
+              _selectedHalalStatusFilter = null;
+            });
+          },
+        ),
+      );
+    }
+
     if (_nearMeOnly) {
       chips.add(
         _ActiveFilterChipData(
@@ -843,10 +900,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       enabled: false,
                       child: Text(user.email ?? 'Signed in'),
                     ),
-                    const PopupMenuItem(
-                      value: 'logout',
-                      child: Text('Logout'),
-                    ),
+                    const PopupMenuItem(value: 'logout', child: Text('Logout')),
                   ];
                 },
                 icon: const Icon(Icons.account_circle_outlined),
@@ -855,8 +909,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
           if (kDebugMode)
             IconButton(
+              tooltip: 'Import restaurants CSV',
+              onPressed: _isImportingRestaurants
+                  ? null
+                  : _importRestaurantsFromCsv,
+              icon: _isImportingRestaurants
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    )
+                  : const Icon(Icons.upload_file_rounded),
+            ),
+          if (kDebugMode)
+            IconButton(
               tooltip: 'Delete permanently closed restaurants',
-              onPressed: _isCleaningClosedRestaurants
+              onPressed: _isCleaningClosedRestaurants || _isImportingRestaurants
                   ? null
                   : _deletePermanentlyClosedRestaurants,
               icon: const Icon(Icons.delete_sweep),
@@ -868,14 +936,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.cream,
-              AppTheme.warmWhite,
-            ],
+            colors: [AppTheme.cream, AppTheme.warmWhite],
           ),
         ),
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection('restaurants').snapshots(),
+          stream: FirebaseFirestore.instance
+              .collection('restaurants')
+              .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return const _ExploreStateMessage(
@@ -949,12 +1016,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         if (hasResults)
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                16,
-                                16,
-                                0,
-                              ),
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                               child: _MapExperienceCard(
                                 markers: markers,
                                 selectedRestaurant: selectedRestaurant,
@@ -982,46 +1044,44 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           SliverPadding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                             sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) {
-                                  final restaurant = filteredRestaurants[index];
-                                  final isFavourite =
-                                      favouriteIds.contains(restaurant.id);
+                              delegate: SliverChildBuilderDelegate((
+                                context,
+                                index,
+                              ) {
+                                final restaurant = filteredRestaurants[index];
+                                final isFavourite = favouriteIds.contains(
+                                  restaurant.id,
+                                );
 
-                                  return Padding(
-                                    padding: EdgeInsets.only(
-                                      bottom:
-                                          index == filteredRestaurants.length - 1
-                                              ? 0
-                                              : 14,
+                                return Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom:
+                                        index == filteredRestaurants.length - 1
+                                        ? 0
+                                        : 14,
+                                  ),
+                                  child: _ExploreRestaurantCard(
+                                    restaurant: restaurant,
+                                    ratingSummary: _buildRatingSummary(
+                                      restaurant,
                                     ),
-                                    child: _ExploreRestaurantCard(
-                                      restaurant: restaurant,
-                                      ratingSummary: _buildRatingSummary(
-                                        restaurant,
-                                      ),
-                                      distanceLabel: _distanceLabel(
-                                        restaurant,
-                                      ),
-                                      areaLabel: _extractAreaLabel(
-                                        restaurant.address,
-                                      ),
-                                      isFavourite: isFavourite,
-                                      onOpen: () {
-                                        setState(() {
-                                          selectedRestaurant = restaurant;
-                                        });
-                                        _openRestaurantDetails(restaurant);
-                                      },
-                                      onSave:
-                                          () => _toggleFavourite(restaurant),
-                                      onReview:
-                                          () => _showReviewDialog(restaurant),
+                                    distanceLabel: _distanceLabel(restaurant),
+                                    areaLabel: _extractAreaLabel(
+                                      restaurant.address,
                                     ),
-                                  );
-                                },
-                                childCount: filteredRestaurants.length,
-                              ),
+                                    isFavourite: isFavourite,
+                                    onOpen: () {
+                                      setState(() {
+                                        selectedRestaurant = restaurant;
+                                      });
+                                      _openRestaurantDetails(restaurant);
+                                    },
+                                    onSave: () => _toggleFavourite(restaurant),
+                                    onReview: () =>
+                                        _showReviewDialog(restaurant),
+                                  ),
+                                );
+                              }, childCount: filteredRestaurants.length),
                             ),
                           )
                         else
@@ -1037,11 +1097,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 title: 'No restaurants match that search yet.',
                                 subtitle:
                                     _searchController.text.trim().isEmpty &&
-                                            _selectedTypeFilter == null &&
-                                            _selectedAreaFilter == null &&
-                                            !_nearMeOnly
-                                        ? 'Try again in a moment.'
-                                        : 'Try another name, cuisine, area, or turn off Near Me.',
+                                        _selectedTypeFilter == null &&
+                                        _selectedAreaFilter == null &&
+                                        _selectedHalalStatusFilter == null &&
+                                        !_nearMeOnly
+                                    ? 'Try again in a moment.'
+                                    : 'Try another name, cuisine, area, halal status, or turn off Near Me.',
                               ),
                             ),
                           ),
@@ -1075,8 +1136,8 @@ class _ExploreHeroPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = query.isEmpty
         ? nearMeOnly
-            ? 'Nearby flavours are waiting.'
-            : 'A warm food trail is waiting.'
+              ? 'Nearby flavours are waiting.'
+              : 'A warm food trail is waiting.'
         : 'Results for "$query"';
     final subtitle = selectedRestaurant == null
         ? 'Browse nearby restaurants, save the ones that feel special, and compare the taste notes before deciding where to go next.'
@@ -1089,11 +1150,7 @@ class _ExploreHeroPanel extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFD45720),
-            Color(0xFFE56F21),
-            Color(0xFFF0A43B),
-          ],
+          colors: [Color(0xFFD45720), Color(0xFFE56F21), Color(0xFFF0A43B)],
         ),
         boxShadow: [
           BoxShadow(
@@ -1149,10 +1206,7 @@ class _ExploreHeroPanel extends StatelessWidget {
 }
 
 class _HeroPill extends StatelessWidget {
-  const _HeroPill({
-    required this.icon,
-    required this.label,
-  });
+  const _HeroPill({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -1238,7 +1292,7 @@ class _SearchAndFilterCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onOpenFilters,
                 icon: const Icon(Icons.filter_list_rounded),
-                label: const Text('Filter cuisine & area'),
+                label: const Text('Filter restaurant'),
               ),
               FilledButton.icon(
                 onPressed: isLocatingUser ? null : onToggleNearMe,
@@ -1260,12 +1314,13 @@ class _SearchAndFilterCard extends StatelessWidget {
                   isLocatingUser
                       ? 'Locating...'
                       : nearMeOnly
-                          ? 'Near me active'
-                          : 'Restaurants near me',
+                      ? 'Near me active'
+                      : 'Restaurants near me',
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor:
-                      nearMeOnly ? const Color(0xFFB5481E) : AppTheme.clay,
+                  backgroundColor: nearMeOnly
+                      ? const Color(0xFFB5481E)
+                      : AppTheme.clay,
                 ),
               ),
             ],
@@ -1320,13 +1375,13 @@ class _MapExperienceCard extends StatelessWidget {
     final cameraTarget = selectedRestaurant != null
         ? LatLng(selectedRestaurant!.lat, selectedRestaurant!.lng)
         : nearMeOnly && userLocation != null
-            ? userLocation!
-            : perlisCenter;
+        ? userLocation!
+        : perlisCenter;
     final zoom = selectedRestaurant != null
         ? 16.0
         : nearMeOnly && userLocation != null
-            ? 14.0
-            : 13.0;
+        ? 14.0
+        : 13.0;
 
     return Container(
       decoration: BoxDecoration(
@@ -1366,8 +1421,8 @@ class _MapExperienceCard extends StatelessWidget {
                 Text(
                   selectedRestaurant == null
                       ? nearMeOnly && userLocation != null
-                          ? 'You are seeing restaurants within 10 km of your current location.'
-                          : 'Tap a marker or restaurant card to zoom in on the next place that feels promising.'
+                            ? 'You are seeing restaurants within 10 km of your current location.'
+                            : 'Tap a marker or restaurant card to zoom in on the next place that feels promising.'
                       : 'Selected now: ${selectedRestaurant!.name}',
                   style: const TextStyle(
                     color: AppTheme.cocoa,
@@ -1380,9 +1435,7 @@ class _MapExperienceCard extends StatelessWidget {
                   selectedRestaurant == null
                       ? 'Use the map to get your bearings, then open the details when you are ready to save or review.'
                       : selectedRestaurant!.address,
-                  style: TextStyle(
-                    color: Colors.brown.shade400,
-                  ),
+                  style: TextStyle(color: Colors.brown.shade400),
                 ),
               ],
             ),
@@ -1416,16 +1469,17 @@ class _ExploreRestaurantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasKnownHalalStatus = restaurant.hasKnownHalalStatus;
     final halalForeground = restaurant.halalStatus == 'Halal'
         ? const Color(0xFF2F7A4A)
         : restaurant.halalStatus == 'Non-halal'
-            ? const Color(0xFF9D3243)
-            : const Color(0xFF8A5C49);
+        ? const Color(0xFF9D3243)
+        : const Color(0xFF8A5C49);
     final halalBackground = restaurant.halalStatus == 'Halal'
         ? const Color(0xFFE8F7EE)
         : restaurant.halalStatus == 'Non-halal'
-            ? const Color(0xFFFFEAEF)
-            : const Color(0xFFFFF5E9);
+        ? const Color(0xFFFFEAEF)
+        : const Color(0xFFFFF5E9);
     final detailsSection = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1445,14 +1499,15 @@ class _ExploreRestaurantCard extends StatelessWidget {
               backgroundColor: AppTheme.blush,
               foregroundColor: AppTheme.clay,
             ),
-            _MiniBadge(
-              icon: restaurant.halalStatus == 'Non-halal'
-                  ? Icons.no_food_rounded
-                  : Icons.verified_outlined,
-              label: restaurant.halalStatus,
-              backgroundColor: halalBackground,
-              foregroundColor: halalForeground,
-            ),
+            if (hasKnownHalalStatus)
+              _MiniBadge(
+                icon: restaurant.halalStatus == 'Non-halal'
+                    ? Icons.no_food_rounded
+                    : Icons.verified_outlined,
+                label: restaurant.halalStatus,
+                backgroundColor: halalBackground,
+                foregroundColor: halalForeground,
+              ),
           ],
         ),
         const SizedBox(height: 10),
@@ -1472,25 +1527,16 @@ class _ExploreRestaurantCard extends StatelessWidget {
           restaurant.address,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.brown.shade400,
-            height: 1.4,
-          ),
+          style: TextStyle(color: Colors.brown.shade400, height: 1.4),
         ),
         const SizedBox(height: 12),
         Wrap(
           spacing: 10,
           runSpacing: 8,
           children: [
-            _InlineStat(
-              icon: Icons.place_outlined,
-              label: areaLabel,
-            ),
+            _InlineStat(icon: Icons.place_outlined, label: areaLabel),
             if (distanceLabel.isNotEmpty)
-              _InlineStat(
-                icon: Icons.near_me_outlined,
-                label: distanceLabel,
-              ),
+              _InlineStat(icon: Icons.near_me_outlined, label: distanceLabel),
             _InlineStat(
               icon: restaurant.isOpen == true
                   ? Icons.schedule_rounded
@@ -1615,10 +1661,7 @@ class _RestaurantThumb extends StatelessWidget {
             ? Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [
-                      Color(0xFFFFD9C0),
-                      Color(0xFFF6A76B),
-                    ],
+                    colors: [Color(0xFFFFD9C0), Color(0xFFF6A76B)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -1647,10 +1690,7 @@ class _RestaurantThumb extends StatelessWidget {
                 errorWidget: (_, __, ___) => Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Color(0xFFFFD9C0),
-                        Color(0xFFF6A76B),
-                      ],
+                      colors: [Color(0xFFFFD9C0), Color(0xFFF6A76B)],
                     ),
                   ),
                   alignment: Alignment.center,
@@ -1757,15 +1797,19 @@ class _FilterSheet extends StatefulWidget {
   const _FilterSheet({
     required this.availableTypes,
     required this.availableAreas,
+    required this.availableHalalStatuses,
     required this.initialType,
     required this.initialArea,
+    required this.initialHalalStatus,
     required this.initialNearMeOnly,
   });
 
   final List<String> availableTypes;
   final List<String> availableAreas;
+  final List<String> availableHalalStatuses;
   final String? initialType;
   final String? initialArea;
+  final String? initialHalalStatus;
   final bool initialNearMeOnly;
 
   @override
@@ -1775,6 +1819,7 @@ class _FilterSheet extends StatefulWidget {
 class _FilterSheetState extends State<_FilterSheet> {
   late String? _selectedType;
   late String? _selectedArea;
+  late String? _selectedHalalStatus;
   late bool _nearMeOnly;
 
   @override
@@ -1782,6 +1827,7 @@ class _FilterSheetState extends State<_FilterSheet> {
     super.initState();
     _selectedType = widget.initialType;
     _selectedArea = widget.initialArea;
+    _selectedHalalStatus = widget.initialHalalStatus;
     _nearMeOnly = widget.initialNearMeOnly;
   }
 
@@ -1821,11 +1867,8 @@ class _FilterSheetState extends State<_FilterSheet> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Choose a food style, area, or combine it with Near Me for a quicker decision.',
-                  style: TextStyle(
-                    color: Colors.brown.shade400,
-                    height: 1.45,
-                  ),
+                  'Choose a food style, area, halal status, or combine it with Near Me for a quicker decision.',
+                  style: TextStyle(color: Colors.brown.shade400, height: 1.45),
                 ),
                 const SizedBox(height: 18),
                 const Text(
@@ -1847,6 +1890,32 @@ class _FilterSheetState extends State<_FilterSheet> {
                           onSelected: (selected) {
                             setState(() {
                               _selectedType = selected ? type : null;
+                            });
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Status',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.cocoa,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: widget.availableHalalStatuses
+                      .map(
+                        (status) => ChoiceChip(
+                          label: Text(status),
+                          selected: _selectedHalalStatus == status,
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedHalalStatus = selected ? status : null;
                             });
                           },
                         ),
@@ -1908,6 +1977,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                           setState(() {
                             _selectedType = null;
                             _selectedArea = null;
+                            _selectedHalalStatus = null;
                             _nearMeOnly = false;
                           });
                         },
@@ -1923,6 +1993,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                             _FilterDraft(
                               type: _selectedType,
                               area: _selectedArea,
+                              halalStatus: _selectedHalalStatus,
                               nearMeOnly: _nearMeOnly,
                             ),
                           );
@@ -1975,10 +2046,7 @@ class _LoginRequiredSheet extends StatelessWidget {
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFFD75A25),
-                      Color(0xFFF09D36),
-                    ],
+                    colors: [Color(0xFFD75A25), Color(0xFFF09D36)],
                   ),
                 ),
                 child: Row(
@@ -1990,11 +2058,7 @@ class _LoginRequiredSheet extends StatelessWidget {
                         color: Colors.white.withOpacity(0.18),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        icon,
-                        color: Colors.white,
-                        size: 28,
-                      ),
+                      child: Icon(icon, color: Colors.white, size: 28),
                     ),
                     const SizedBox(width: 14),
                     const Expanded(
@@ -2012,10 +2076,7 @@ class _LoginRequiredSheet extends StatelessWidget {
                           SizedBox(height: 4),
                           Text(
                             'Keep your food trail personal and saved to your account.',
-                            style: TextStyle(
-                              color: Colors.white,
-                              height: 1.4,
-                            ),
+                            style: TextStyle(color: Colors.white, height: 1.4),
                           ),
                         ],
                       ),
@@ -2035,10 +2096,7 @@ class _LoginRequiredSheet extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 actionDescription,
-                style: TextStyle(
-                  color: Colors.brown.shade500,
-                  height: 1.5,
-                ),
+                style: TextStyle(color: Colors.brown.shade500, height: 1.5),
               ),
               const SizedBox(height: 18),
               Container(
@@ -2050,18 +2108,12 @@ class _LoginRequiredSheet extends StatelessWidget {
                 child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.verified_user_outlined,
-                      color: AppTheme.clay,
-                    ),
+                    Icon(Icons.verified_user_outlined, color: AppTheme.clay),
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'After signing in, your saved places and reviews will be attached to your own journal in Firebase.',
-                        style: TextStyle(
-                          color: AppTheme.cocoa,
-                          height: 1.45,
-                        ),
+                        style: TextStyle(color: AppTheme.cocoa, height: 1.45),
                       ),
                     ),
                   ],
@@ -2093,10 +2145,7 @@ class _LoginRequiredSheet extends StatelessWidget {
 }
 
 class _ExploreStateMessage extends StatelessWidget {
-  const _ExploreStateMessage({
-    required this.title,
-    required this.subtitle,
-  });
+  const _ExploreStateMessage({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -2138,10 +2187,7 @@ class _ExploreStateMessage extends StatelessWidget {
               Text(
                 subtitle,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.brown.shade400,
-                  height: 1.5,
-                ),
+                style: TextStyle(color: Colors.brown.shade400, height: 1.5),
               ),
             ],
           ),
@@ -2167,19 +2213,18 @@ class _FilterDraft {
   const _FilterDraft({
     required this.type,
     required this.area,
+    required this.halalStatus,
     required this.nearMeOnly,
   });
 
   final String? type;
   final String? area;
+  final String? halalStatus;
   final bool nearMeOnly;
 }
 
 class _ActiveFilterChipData {
-  const _ActiveFilterChipData({
-    required this.label,
-    required this.onRemoved,
-  });
+  const _ActiveFilterChipData({required this.label, required this.onRemoved});
 
   final String label;
   final VoidCallback onRemoved;

@@ -8,6 +8,8 @@ Expected columns can include:
 - rating
 - latitude
 - longitude
+- halalStatus
+- restaurantType
 
 The importer also accepts common variations such as:
 - name
@@ -15,3 +17,10 @@ The importer also accepts common variations such as:
 - lat
 - lng
 - langitude
+- halaStatus
+- halal_status
+- restaurant_type
+- cuisineType
+- cuisine_type
+- foodType
+- category
