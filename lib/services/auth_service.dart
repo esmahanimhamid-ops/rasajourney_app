@@ -6,6 +6,8 @@ import '../models/user_profile.dart';
 class AuthService {
   AuthService._();
 
+  static const String adminEmail = 'rasajourney.admin@gmail.com';
+
   static FirebaseAuth get _auth => FirebaseAuth.instance;
   static FirebaseFirestore get _firestore => FirebaseFirestore.instance;
 
@@ -13,13 +15,19 @@ class AuthService {
 
   static Stream<User?> authStateChanges() => _auth.authStateChanges();
 
+  static bool isAdminEmail(String? email) {
+    return email?.trim().toLowerCase() == adminEmail;
+  }
+
+  static bool isAdmin(User? user) => isAdminEmail(user?.email);
+
   static DocumentReference<Map<String, dynamic>> userDoc(String uid) =>
       _firestore.collection('users').doc(uid);
 
   static Stream<UserProfile> userProfileStream(User user) {
-    return userDoc(user.uid)
-        .snapshots()
-        .map((snapshot) => UserProfile.fromSources(user, snapshot.data()));
+    return userDoc(user.uid).snapshots().map(
+      (snapshot) => UserProfile.fromSources(user, snapshot.data()),
+    );
   }
 
   static Future<UserProfile> loadUserProfile(User user) async {
@@ -27,10 +35,7 @@ class AuthService {
     return UserProfile.fromSources(user, snapshot.data());
   }
 
-  static Future<void> syncUserProfile(
-    User user, {
-    String? fullName,
-  }) async {
+  static Future<void> syncUserProfile(User user, {String? fullName}) async {
     final docRef = userDoc(user.uid);
     final snapshot = await docRef.get();
     final providedName = fullName?.trim() ?? '';
@@ -39,8 +44,8 @@ class AuthService {
     final normalizedName = providedName.isNotEmpty
         ? providedName
         : authDisplayName.isNotEmpty
-            ? authDisplayName
-            : existingName;
+        ? authDisplayName
+        : existingName;
 
     await docRef.set({
       'uid': user.uid,
