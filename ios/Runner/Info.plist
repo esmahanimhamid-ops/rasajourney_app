@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>RasaJourney uses the camera to place food previews in augmented reality.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>RasaJourney uses selected food photos for AI recognition.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

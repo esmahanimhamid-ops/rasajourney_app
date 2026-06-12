@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:ar_flutter_plugin/datatypes/config_planedetection.dart';
 import 'package:ar_flutter_plugin/datatypes/node_types.dart';
@@ -13,8 +14,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
-
-import '../services/food_recognition_service.dart';
 
 class ARScreen extends StatefulWidget {
   const ARScreen({super.key});
@@ -95,20 +94,21 @@ class _ARScreenState extends State<ARScreen> {
   ];
 
   final _imagePicker = ImagePicker();
-  final _foodRecognitionService = FoodRecognitionService();
   ARSessionManager? _arSessionManager;
   ARObjectManager? _arObjectManager;
   ARNode? _currentNode;
-  int _selectedDishIndex = 0;
+  final int _selectedDishIndex = 0;
   bool _arReady = false;
   bool _arStarted = false;
-  bool _recognizedByAi = false;
   bool _isRecognizingFood = false;
   bool _isPlacing = false;
   bool _isCheckingSupport = false;
-  FoodRecognitionResult? _recognitionResult;
+  bool _showFoodPreview = true;
+  double _previewYaw = -0.25;
+  double _previewPitch = 0.12;
+  String? _scannedFoodImagePath;
   String _statusMessage =
-      'Use AI food recognition first, then open AR to preview the matching 3D food.';
+      'Tekan camera, scan gambar makanan, lepas tu gambar tu terus keluar dalam 3D.';
 
   ARFoodDish get _selectedDish => _dishes[_selectedDishIndex];
 
@@ -145,10 +145,9 @@ class _ARScreenState extends State<ARScreen> {
     setState(() {
       _isCheckingSupport = false;
       _arStarted = supported;
+      _showFoodPreview = supported;
       _statusMessage = supported
-          ? _recognizedByAi
-                ? 'Starting AR camera for ${_selectedDish.name}...'
-                : 'Starting AR camera. Point it at the registered food picture.'
+          ? 'Opening AR camera. Your scanned image will appear as a 3D preview.'
           : unavailableMessage;
     });
   }
@@ -205,10 +204,7 @@ class _ARScreenState extends State<ARScreen> {
       await _arSessionManager?.onInitialize(
         showAnimatedGuide: false,
         showFeaturePoints: false,
-        showPlanes: false,
-        imageTrackingAssetPath: _recognizedByAi
-            ? null
-            : _selectedDish.imageAsset,
+        showPlanes: true,
         handleTaps: true,
         handlePans: true,
         handleRotation: true,
@@ -223,15 +219,14 @@ class _ARScreenState extends State<ARScreen> {
 
       setState(() {
         _arReady = true;
-        _statusMessage = _recognizedByAi
-            ? 'AI recognized ${_selectedDish.name}. Placing the 3D preview in front of you.'
-            : 'Scan the exact ${_selectedDish.name} picture shown in this app or on your menu. Keep it flat and well lit.';
+        _showFoodPreview = true;
+        _statusMessage = _scannedFoodImagePath == null
+            ? 'Tap the camera button to scan food. The 3D preview will appear here.'
+            : 'Image scanned. Drag the 3D preview to rotate it.';
       });
 
-      if (_recognizedByAi) {
-        await Future<void>.delayed(const Duration(milliseconds: 700));
-        await _placeDishInFrontOfCamera();
-      }
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await _placeDishInFrontOfCamera();
     } catch (_) {
       if (!mounted) {
         return;
@@ -272,7 +267,7 @@ class _ARScreenState extends State<ARScreen> {
     }
     setState(() {
       _statusMessage =
-          'Camera is ready, but I could not place the 3D food yet. Move the phone slowly and tap reset.';
+          'Camera is ready, but I could not place the 3D food yet. Move the phone slowly around the table, then tap reset.';
     });
   }
 
@@ -287,7 +282,7 @@ class _ARScreenState extends State<ARScreen> {
 
     setState(() {
       _isPlacing = true;
-      _statusMessage = 'Placing ${_selectedDish.name} in AR...';
+      _statusMessage = 'Preparing 3D food preview...';
     });
 
     final previousNode = _currentNode;
@@ -298,7 +293,7 @@ class _ARScreenState extends State<ARScreen> {
     final node = ARNode(
       type: NodeType.localGLTF2,
       uri: _selectedDish.modelAsset,
-      name: _selectedDish.name,
+      name: 'Scanned food preview',
       position: position,
       transformation: transform,
       scale: vector.Vector3.all(0.35),
@@ -312,9 +307,9 @@ class _ARScreenState extends State<ARScreen> {
     setState(() {
       _currentNode = added ? node : null;
       _isPlacing = false;
-      _statusMessage = added
-          ? '${_selectedDish.name} is placed. Drag or twist the 3D bowl to move or rotate it.'
-          : 'Could not place the food model. Try again in brighter light.';
+      _statusMessage = _scannedFoodImagePath == null
+          ? 'Tap the camera button to scan food.'
+          : '3D preview is ready. Drag it left, right, up, or down to rotate.';
     });
   }
 
@@ -335,81 +330,57 @@ class _ARScreenState extends State<ARScreen> {
 
       setState(() {
         _isRecognizingFood = true;
-        _statusMessage = 'AI is checking the food photo...';
+        _scannedFoodImagePath = image.path;
+        _showFoodPreview = true;
+        _statusMessage = 'Image scanned. Opening 3D AR preview...';
       });
-
-      final knownLabels = _dishes
-          .expand((dish) => dish.recognitionLabels)
-          .toSet()
-          .toList(growable: false);
-      final result = await _foodRecognitionService.recognizeFood(
-        image: image,
-        knownFoodLabels: knownLabels,
-      );
-      final matchedIndex = _dishIndexForRecognitionLabel(result.label);
 
       if (!mounted) {
         return;
       }
 
-      if (matchedIndex == null || result.confidence < 0.35) {
-        setState(() {
-          _isRecognizingFood = false;
-          _recognizedByAi = false;
-          _recognitionResult = result;
-          _statusMessage =
-              'AI could not confidently match this food yet. Try a clearer close-up photo, or add this food to the app dataset.';
-        });
+      setState(() {
+        _isRecognizingFood = false;
+        _showFoodPreview = true;
+        _statusMessage = _supportsAR
+            ? 'Image scanned. Showing it in 3D AR now.'
+            : 'Image scanned. Showing it as a 3D preview.';
+      });
+
+      if (_supportsAR && !_arStarted) {
+        await _startAR();
         return;
       }
 
-      setState(() {
-        _selectedDishIndex = matchedIndex;
-        _recognizedByAi = true;
-        _recognitionResult = result;
-        _isRecognizingFood = false;
-        _statusMessage =
-            'AI thinks this is ${_dishes[matchedIndex].name} (${(result.confidence * 100).round()}%). Start AR to view the 3D preview.';
-      });
-    } on FoodRecognitionUnavailableException catch (error) {
-      if (!mounted) {
-        return;
+      if (_arReady) {
+        await _placeDishInFrontOfCamera();
       }
-      setState(() {
-        _isRecognizingFood = false;
-        _recognizedByAi = false;
-        _statusMessage = error.message;
-      });
     } catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
         _isRecognizingFood = false;
-        _recognizedByAi = false;
-        _statusMessage = 'AI food recognition failed. $error';
+        _statusMessage = 'Camera scan failed. $error';
       });
     }
   }
 
-  int? _dishIndexForRecognitionLabel(String label) {
-    final normalized = label.toLowerCase().trim().replaceAll(' ', '_');
-    for (var i = 0; i < _dishes.length; i++) {
-      if (_dishes[i].recognitionLabels.contains(normalized)) {
-        return i;
-      }
-    }
-    return null;
+  void _rotatePreview(DragUpdateDetails details) {
+    setState(() {
+      _previewYaw += details.delta.dx * 0.015;
+      _previewPitch = (_previewPitch - details.delta.dy * 0.015).clamp(
+        -0.8,
+        0.8,
+      );
+    });
   }
 
-  Future<void> _selectDish(int index) async {
+  void _resetPreviewRotation() {
     setState(() {
-      _selectedDishIndex = index;
-      _recognizedByAi = false;
-      _recognitionResult = null;
-      _statusMessage = _arReady
-          ? 'Selected ${_dishes[index].name}. Restart AR to track that menu picture.'
-          : 'Selected ${_dishes[index].name}. You can use registered image tracking, or recognize a food photo first.';
+      _previewYaw = -0.25;
+      _previewPitch = 0.12;
+      _showFoodPreview = true;
     });
   }
 
@@ -423,15 +394,12 @@ class _ARScreenState extends State<ARScreen> {
           foregroundColor: Colors.white,
         ),
         body: _FallbackFoodPreview(
-          dishes: _dishes,
-          selectedIndex: _selectedDishIndex,
-          onSelected: (index) => setState(() => _selectedDishIndex = index),
+          scannedImagePath: _scannedFoodImagePath,
           onRecognizeFromCamera: () => _recognizeFood(ImageSource.camera),
           onRecognizeFromGallery: () => _recognizeFood(ImageSource.gallery),
           isRecognizingFood: _isRecognizingFood,
-          recognitionResult: _recognitionResult,
           statusMessage:
-              'AR camera works on Android or iOS devices. Here is the food preview and info while you test on this platform.',
+              'Tekan camera untuk scan gambar makanan. AR camera works on Android or iOS devices.',
         ),
       );
     }
@@ -444,15 +412,12 @@ class _ARScreenState extends State<ARScreen> {
           foregroundColor: Colors.white,
         ),
         body: _FallbackFoodPreview(
-          dishes: _dishes,
-          selectedIndex: _selectedDishIndex,
-          onSelected: (index) => setState(() => _selectedDishIndex = index),
+          scannedImagePath: _scannedFoodImagePath,
           onStartAR: _startAR,
           onRecognizeFromCamera: () => _recognizeFood(ImageSource.camera),
           onRecognizeFromGallery: () => _recognizeFood(ImageSource.gallery),
           isCheckingSupport: _isCheckingSupport,
           isRecognizingFood: _isRecognizingFood,
-          recognitionResult: _recognitionResult,
           statusMessage: _statusMessage,
         ),
       );
@@ -463,7 +428,7 @@ class _ARScreenState extends State<ARScreen> {
         children: [
           ARView(
             onARViewCreated: _onARViewCreated,
-            planeDetectionConfig: PlaneDetectionConfig.none,
+            planeDetectionConfig: PlaneDetectionConfig.horizontalAndVertical,
             permissionPromptDescription:
                 'Camera access is needed to show food in augmented reality.',
             permissionPromptButtonText: 'Allow camera',
@@ -474,18 +439,28 @@ class _ARScreenState extends State<ARScreen> {
                 _TopARBar(
                   statusMessage: _statusMessage,
                   isPlacing: _isPlacing,
-                  onReset: _recognizedByAi ? _placeDishInFrontOfCamera : null,
+                  onReset: _placeDishInFrontOfCamera,
+                  onShowPreview: () => setState(() => _showFoodPreview = true),
                 ),
                 const Spacer(),
-                _DishSelector(
-                  dishes: _dishes,
-                  selectedIndex: _selectedDishIndex,
-                  onSelected: _selectDish,
+                _ARCameraActions(
+                  isScanning: _isRecognizingFood,
+                  onCamera: () => _recognizeFood(ImageSource.camera),
+                  onGallery: () => _recognizeFood(ImageSource.gallery),
                 ),
-                _DishInfoSheet(dish: _selectedDish),
               ],
             ),
           ),
+          if (_showFoodPreview)
+            _Food3DPreviewPopup(
+              dish: _selectedDish,
+              scannedImagePath: _scannedFoodImagePath,
+              yaw: _previewYaw,
+              pitch: _previewPitch,
+              onRotate: _rotatePreview,
+              onReset: _resetPreviewRotation,
+              onClose: () => setState(() => _showFoodPreview = false),
+            ),
         ],
       ),
     );
@@ -521,11 +496,13 @@ class _TopARBar extends StatelessWidget {
     required this.statusMessage,
     required this.isPlacing,
     required this.onReset,
+    required this.onShowPreview,
   });
 
   final String statusMessage;
   final bool isPlacing;
   final VoidCallback? onReset;
+  final VoidCallback onShowPreview;
 
   @override
   Widget build(BuildContext context) {
@@ -585,176 +562,367 @@ class _TopARBar extends StatelessWidget {
               icon: const Icon(Icons.center_focus_strong),
             ),
           ],
+          const SizedBox(width: 8),
+          IconButton.filled(
+            onPressed: onShowPreview,
+            tooltip: 'Show 3D food',
+            icon: const Icon(Icons.threed_rotation),
+          ),
         ],
       ),
     );
   }
 }
 
-class _DishSelector extends StatelessWidget {
-  const _DishSelector({
-    required this.dishes,
-    required this.selectedIndex,
-    required this.onSelected,
+class _Food3DPreviewPopup extends StatelessWidget {
+  const _Food3DPreviewPopup({
+    required this.dish,
+    required this.scannedImagePath,
+    required this.yaw,
+    required this.pitch,
+    required this.onRotate,
+    required this.onReset,
+    required this.onClose,
   });
 
-  final List<ARFoodDish> dishes;
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 82,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: dishes.length,
-        separatorBuilder: (_, index) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final dish = dishes[index];
-          final isSelected = index == selectedIndex;
-
-          return ChoiceChip(
-            selected: isSelected,
-            showCheckmark: false,
-            avatar: CircleAvatar(backgroundImage: AssetImage(dish.imageAsset)),
-            label: Text(dish.name),
-            onSelected: (_) => onSelected(index),
-            selectedColor: dish.color.withValues(alpha: 0.24),
-            backgroundColor: Colors.white.withValues(alpha: 0.88),
-            side: BorderSide(
-              color: isSelected ? dish.color : Colors.transparent,
-              width: 1.5,
-            ),
-            labelStyle: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: isSelected ? dish.color : Colors.black87,
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _DishInfoSheet extends StatelessWidget {
-  const _DishInfoSheet({required this.dish});
-
   final ARFoodDish dish;
+  final String? scannedImagePath;
+  final double yaw;
+  final double pitch;
+  final GestureDragUpdateCallback onRotate;
+  final VoidCallback onReset;
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-      ),
+    return Positioned.fill(
       child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    dish.imageAsset,
-                    width: 64,
-                    height: 64,
-                    fit: BoxFit.cover,
+        child: IgnorePointer(
+          ignoring: false,
+          child: Align(
+            alignment: const Alignment(0, -0.08),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 390),
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        dish.name,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '3D Laksa Bowl',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black54,
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  scannedImagePath == null
+                                      ? 'Scan a food image first'
+                                      : 'Drag to rotate the bowl',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black54,
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: onReset,
+                            tooltip: 'Reset rotation',
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black45,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.refresh),
+                          ),
+                          IconButton(
+                            onPressed: onClose,
+                            tooltip: 'Close 3D food',
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black45,
+                              foregroundColor: Colors.white,
+                            ),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        dish.subtitle,
-                        style: TextStyle(
-                          color: dish.color,
-                          fontWeight: FontWeight.w700,
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onPanUpdate: onRotate,
+                        child: SizedBox(
+                          height: 300,
+                          width: double.infinity,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Transform(
+                              alignment: Alignment.center,
+                              transform: Matrix4.identity()
+                                ..setEntry(3, 2, 0.0012)
+                                ..rotateX(pitch)
+                                ..rotateY(yaw),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  CustomPaint(
+                                    painter: _FoodBowl3DPainter(
+                                      dishColor: dish.color,
+                                      yaw: yaw,
+                                      pitch: pitch,
+                                      hasScannedImage: false,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 14),
-            Text(
-              dish.origin,
-              style: const TextStyle(fontWeight: FontWeight.w700, height: 1.35),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              dish.description,
-              style: TextStyle(color: Colors.grey.shade800, height: 1.45),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: dish.ingredients
-                  .map(
-                    (ingredient) => Chip(
-                      label: Text(ingredient),
-                      visualDensity: VisualDensity.compact,
-                      backgroundColor: dish.color.withValues(alpha: 0.12),
-                      side: BorderSide.none,
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
+class _FoodBowl3DPainter extends CustomPainter {
+  const _FoodBowl3DPainter({
+    required this.dishColor,
+    required this.yaw,
+    required this.pitch,
+    required this.hasScannedImage,
+  });
+
+  final Color dishColor;
+  final double yaw;
+  final double pitch;
+  final bool hasScannedImage;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height * 0.53);
+    final turn = math.sin(yaw);
+    final tilt = 1 - (pitch.abs() * 0.42);
+    final bowlWidth = size.width * (hasScannedImage ? 0.78 : 0.68);
+    final bowlHeight = size.height * (hasScannedImage ? 0.42 : 0.34) * tilt;
+    final rimRect = Rect.fromCenter(
+      center: center,
+      width: bowlWidth,
+      height: bowlHeight,
+    );
+
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.16)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(center.dx, center.dy + bowlHeight * 0.54),
+        width: bowlWidth * 0.86,
+        height: bowlHeight * 0.42,
+      ),
+      shadowPaint,
+    );
+
+    final bowlBody = Path()
+      ..moveTo(rimRect.left + bowlWidth * 0.06, center.dy)
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy + bowlHeight * 1.08,
+        rimRect.right - bowlWidth * 0.06,
+        center.dy,
+      )
+      ..quadraticBezierTo(
+        center.dx,
+        center.dy + bowlHeight * 0.35,
+        rimRect.left + bowlWidth * 0.06,
+        center.dy,
+      )
+      ..close();
+    canvas.drawPath(
+      bowlBody,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFFFFF1D3),
+            Color.lerp(const Color(0xFFD7A86E), dishColor, 0.24)!,
+            const Color(0xFF8F5B32),
+          ],
+        ).createShader(bowlBody.getBounds()),
+    );
+
+    canvas.drawOval(
+      rimRect.inflate(5),
+      Paint()
+        ..color = const Color(0xFFFFF5DF)
+        ..style = PaintingStyle.fill,
+    );
+    if (hasScannedImage) {
+      canvas.drawOval(
+        rimRect.inflate(13),
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.92),
+              const Color(0xFFE9D1A7),
+              const Color(0xFF8F6B45),
+            ],
+          ).createShader(rimRect.inflate(13)),
+      );
+      canvas.drawOval(
+        rimRect.inflate(5),
+        Paint()..color = const Color(0xFFFFF7E8),
+      );
+      canvas.drawArc(
+        rimRect.inflate(10),
+        math.pi * (1.03 + turn * 0.1),
+        math.pi * 0.5,
+        false,
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.72)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5,
+      );
+      return;
+    }
+    canvas.drawOval(
+      rimRect,
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            dishColor.withValues(alpha: 0.95),
+            const Color(0xFFE8792E),
+            const Color(0xFFFFC55C),
+          ],
+        ).createShader(rimRect),
+    );
+    canvas.drawOval(
+      rimRect.deflate(12),
+      Paint()..color = const Color(0xFFFFD36D).withValues(alpha: 0.76),
+    );
+
+    final noodlePaint = Paint()
+      ..color = const Color(0xFFFFF1B8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 7; i++) {
+      final offset = (i - 3) * 17.0 + turn * 14;
+      final y = center.dy - bowlHeight * 0.05 + (i.isEven ? 7 : -5);
+      final path = Path()
+        ..moveTo(center.dx - 78 + offset, y)
+        ..cubicTo(
+          center.dx - 42 + offset,
+          y - 24,
+          center.dx + 12 + offset,
+          y + 24,
+          center.dx + 68 + offset,
+          y - 2,
+        );
+      canvas.drawPath(path, noodlePaint);
+    }
+
+    final herbPaint = Paint()..color = const Color(0xFF2F8F3A);
+    final chilliPaint = Paint()..color = const Color(0xFFD8231F);
+    for (var i = 0; i < 5; i++) {
+      final angle = yaw + i * 1.22;
+      final itemCenter = Offset(
+        center.dx + math.cos(angle) * bowlWidth * 0.22,
+        center.dy + math.sin(angle) * bowlHeight * 0.22,
+      );
+      canvas.save();
+      canvas.translate(itemCenter.dx, itemCenter.dy);
+      canvas.rotate(angle);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(-18, -5, 36, 10),
+          const Radius.circular(6),
+        ),
+        i.isEven ? herbPaint : chilliPaint,
+      );
+      canvas.restore();
+    }
+
+    final highlightPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.32)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+    canvas.drawArc(
+      rimRect.deflate(8),
+      math.pi * (1.08 + turn * 0.12),
+      math.pi * 0.42,
+      false,
+      highlightPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _FoodBowl3DPainter oldDelegate) {
+    return oldDelegate.yaw != yaw ||
+        oldDelegate.pitch != pitch ||
+        oldDelegate.dishColor != dishColor ||
+        oldDelegate.hasScannedImage != hasScannedImage;
+  }
+}
+
 class _FallbackFoodPreview extends StatelessWidget {
   const _FallbackFoodPreview({
-    required this.dishes,
-    required this.selectedIndex,
-    required this.onSelected,
+    required this.scannedImagePath,
     required this.statusMessage,
     required this.onRecognizeFromCamera,
     required this.onRecognizeFromGallery,
     required this.isRecognizingFood,
-    required this.recognitionResult,
     this.onStartAR,
     this.isCheckingSupport = false,
   });
 
-  final List<ARFoodDish> dishes;
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
+  final String? scannedImagePath;
   final String statusMessage;
   final VoidCallback onRecognizeFromCamera;
   final VoidCallback onRecognizeFromGallery;
   final bool isRecognizingFood;
-  final FoodRecognitionResult? recognitionResult;
   final VoidCallback? onStartAR;
   final bool isCheckingSupport;
 
   @override
   Widget build(BuildContext context) {
-    final dish = dishes[selectedIndex];
-
     return Container(
       color: const Color(0xFFFFF3E0),
       child: SafeArea(
@@ -766,30 +934,13 @@ class _FallbackFoodPreview extends StatelessWidget {
               style: TextStyle(color: Colors.brown.shade700, height: 1.4),
             ),
             const SizedBox(height: 18),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.asset(
-                dish.imageAsset,
-                height: 260,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(height: 18),
-            _DishSelector(
-              dishes: dishes,
-              selectedIndex: selectedIndex,
-              onSelected: onSelected,
-            ),
+            _InlineScannedPreview(scannedImagePath: scannedImagePath),
             const SizedBox(height: 10),
             _FoodRecognitionActions(
               isRecognizingFood: isRecognizingFood,
               onCamera: onRecognizeFromCamera,
               onGallery: onRecognizeFromGallery,
             ),
-            if (recognitionResult != null) ...[
-              const SizedBox(height: 10),
-              _RecognitionResultCard(result: recognitionResult!),
-            ],
             if (onStartAR != null) ...[
               const SizedBox(height: 10),
               SizedBox(
@@ -817,9 +968,107 @@ class _FallbackFoodPreview extends StatelessWidget {
               ),
               const SizedBox(height: 14),
             ],
-            _DishInfoSheet(dish: dish),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InlineScannedPreview extends StatelessWidget {
+  const _InlineScannedPreview({required this.scannedImagePath});
+
+  final String? scannedImagePath;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 260,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.75),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.14)),
+        ),
+        child: Center(
+          child: scannedImagePath == null
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.camera_alt_outlined,
+                      size: 48,
+                      color: Colors.deepOrange.shade300,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Scan food image',
+                      style: TextStyle(
+                        color: Colors.brown.shade700,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                )
+              : Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()
+                    ..setEntry(3, 2, 0.001)
+                    ..rotateX(0.76)
+                    ..rotateY(-0.24),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: Image.file(
+                      File(scannedImagePath!),
+                      width: 210,
+                      height: 150,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ARCameraActions extends StatelessWidget {
+  const _ARCameraActions({
+    required this.isScanning,
+    required this.onCamera,
+    required this.onGallery,
+  });
+
+  final bool isScanning;
+  final VoidCallback onCamera;
+  final VoidCallback onGallery;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: isScanning ? null : onCamera,
+              icon: isScanning
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.camera_alt),
+              label: Text(isScanning ? 'Scanning...' : 'Scan Image'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          IconButton.filledTonal(
+            onPressed: isScanning ? null : onGallery,
+            tooltip: 'Choose image',
+            icon: const Icon(Icons.photo_library_outlined),
+          ),
+        ],
       ),
     );
   }
@@ -853,7 +1102,7 @@ class _FoodRecognitionActions extends StatelessWidget {
           child: OutlinedButton.icon(
             onPressed: onCamera,
             icon: const Icon(Icons.camera_alt_outlined),
-            label: const Text('Recognize Food'),
+            label: const Text('Scan Image'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
@@ -871,38 +1120,6 @@ class _FoodRecognitionActions extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _RecognitionResultCard extends StatelessWidget {
-  const _RecognitionResultCard({required this.result});
-
-  final FoodRecognitionResult result;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.auto_awesome, color: Colors.deepOrange),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'AI result: ${result.label.replaceAll('_', ' ')} '
-              '(${(result.confidence * 100).round()}%).',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
