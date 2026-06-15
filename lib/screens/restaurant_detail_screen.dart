@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/restaurant.dart';
 import '../services/google_places_service.dart';
 import '../theme/app_theme.dart';
+import 'ar_screen.dart';
 
 class RestaurantDetailScreen extends StatefulWidget {
   final Restaurant restaurant;
@@ -94,6 +95,14 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
     }
 
     throw 'Could not open map';
+  }
+
+  void _openFoodShowcase(Restaurant restaurant) {
+    final food = ARScreen.relatedFoodForRestaurant(restaurant);
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ARScreen(initialFoodId: food.id)),
+    );
   }
 
   @override
@@ -304,6 +313,25 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                       child: _SectionCard(
+                        title: 'Food AR Showcase',
+                        subtitle:
+                            'Open a related Perlis food showcase for this restaurant.',
+                        icon: Icons.view_in_ar_outlined,
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => _openFoodShowcase(restaurant),
+                            icon: const Icon(Icons.view_in_ar_outlined),
+                            label: Text(
+                              'View ${ARScreen.relatedFoodForRestaurant(restaurant).name} in AR',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: _SectionCard(
                         title: 'Operating Hours',
                         subtitle:
                             'Check whether the restaurant fits your next visit plan.',
@@ -472,15 +500,14 @@ class _PhotoGalleryHeader extends StatelessWidget {
                 return CachedNetworkImage(
                   imageUrl: galleryImages[index],
                   fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
+                  placeholder: (_, _) => Container(
                     color: const Color(0xFFFFE5D6),
                     alignment: Alignment.center,
                     child: const CircularProgressIndicator(
                       color: AppTheme.clay,
                     ),
                   ),
-                  errorWidget: (_, __, ___) =>
-                      _DetailHero(restaurant: restaurant),
+                  errorWidget: (_, _, _) => _DetailHero(restaurant: restaurant),
                 );
               },
             ),
@@ -496,7 +523,7 @@ class _PhotoGalleryHeader extends StatelessWidget {
                   vertical: 9,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.35),
+                  color: Colors.black.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: const Text(
@@ -521,7 +548,7 @@ class _PhotoGalleryHeader extends StatelessWidget {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.35),
+                    color: Colors.black.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Row(
@@ -536,7 +563,7 @@ class _PhotoGalleryHeader extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: currentIndex == index
                               ? Colors.white
-                              : Colors.white.withOpacity(0.45),
+                              : Colors.white.withValues(alpha: 0.45),
                           borderRadius: BorderRadius.circular(999),
                         ),
                       ),
@@ -656,7 +683,7 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.brown.withOpacity(0.07),
+            color: Colors.brown.withValues(alpha: 0.07),
             blurRadius: 22,
             offset: const Offset(0, 12),
           ),
