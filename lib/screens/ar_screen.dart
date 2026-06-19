@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -133,17 +134,30 @@ class _ARScreenState extends State<ARScreen> {
   final _imagePicker = ImagePicker();
   final _assetSignatures = <String, _ImageSignature>{};
 
+  CameraController? _cameraController;
   late ARFoodDish _selectedFood;
   ARFoodDish? _showcaseFood;
   String? _scannedFoodImagePath;
   String? _scannerMessage;
   bool _isMatchingFood = false;
+  bool _isLiveScannerLoading = true;
+  bool _isLiveFrameProcessing = false;
+  DateTime? _lastLiveFrameAt;
 
   @override
   void initState() {
     super.initState();
     _selectedFood = ARScreen.foodById(widget.initialFoodId);
     _showcaseFood = widget.initialFoodId == null ? null : _selectedFood;
+    _initializeLiveScanner();
+  }
+
+  @override
+  void dispose() {
+    final cameraController = _cameraController;
+    _cameraController = null;
+    cameraController?.dispose();
+    super.dispose();
   }
 
   void _openShowcase() {
@@ -195,8 +209,125 @@ class _ARScreenState extends State<ARScreen> {
     }
   }
 
+  Future<void> _initializeLiveScanner() async {
+    if (_showcaseFood != null) {
+      setState(() {
+        _isLiveScannerLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final cameras = await availableCameras();
+      if (!mounted) {
+        return;
+      }
+      if (cameras.isEmpty) {
+        setState(() {
+          _isLiveScannerLoading = false;
+          _scannerMessage =
+              'No camera was found. You can still choose a photo from the gallery.';
+        });
+        return;
+      }
+
+      final backCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      final controller = CameraController(
+        backCamera,
+        ResolutionPreset.medium,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
+
+      await controller.initialize();
+      await controller.startImageStream(_handleLiveCameraImage);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+
+      setState(() {
+        _cameraController = controller;
+        _isLiveScannerLoading = false;
+        _scannerMessage =
+            'Point the camera at food. RasaJourney will match it automatically.';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLiveScannerLoading = false;
+        _scannerMessage =
+            'Live camera detection is not available. You can still choose a photo.';
+      });
+    }
+  }
+
+  Future<void> _restartLiveScanner() async {
+    final cameraController = _cameraController;
+    _cameraController = null;
+    await cameraController?.dispose();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isLiveScannerLoading = true;
+      _scannerMessage = 'Starting live food detector...';
+    });
+    await _initializeLiveScanner();
+  }
+
+  Future<void> _handleLiveCameraImage(CameraImage image) async {
+    final now = DateTime.now();
+    if (_isLiveFrameProcessing ||
+        (_lastLiveFrameAt != null &&
+            now.difference(_lastLiveFrameAt!) <
+                const Duration(milliseconds: 1300))) {
+      return;
+    }
+
+    _lastLiveFrameAt = now;
+    _isLiveFrameProcessing = true;
+
+    try {
+      final signature = _signatureFromCameraImage(image);
+      final match = await _matchFoodFromSignature(signature);
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedFood = match.food;
+        _scannedFoodImagePath = null;
+        _scannerMessage =
+            'Detected ${match.food.name}. Food information is shown on the camera overlay.';
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _scannerMessage =
+            'Keep the food centered in good light while the detector scans.';
+      });
+    } finally {
+      _isLiveFrameProcessing = false;
+    }
+  }
+
   Future<_FoodImageMatch> _matchFoodFromImage(String imagePath) async {
     final scannedSignature = await _signatureFromFile(imagePath);
+    return _matchFoodFromSignature(scannedSignature);
+  }
+
+  Future<_FoodImageMatch> _matchFoodFromSignature(
+    _ImageSignature scannedSignature,
+  ) async {
     final ruleMatch = _ruleBasedFoodMatch(scannedSignature);
     if (ruleMatch != null) {
       return ruleMatch;
@@ -313,6 +444,76 @@ class _ARScreenState extends State<ARScreen> {
     final width = image.width;
     final height = image.height;
     final pixels = byteData.buffer.asUint8List();
+    final signature = _signatureFromRgbPixels(
+      width: width,
+      height: height,
+      readRgb: (x, y) {
+        final pixelIndex = (y * width + x) * 4;
+        return _RgbColor(
+          pixels[pixelIndex] / 255,
+          pixels[pixelIndex + 1] / 255,
+          pixels[pixelIndex + 2] / 255,
+        );
+      },
+    );
+    image.dispose();
+
+    return signature;
+  }
+
+  _ImageSignature _signatureFromCameraImage(CameraImage image) {
+    if (image.format.group == ImageFormatGroup.bgra8888) {
+      final pixels = image.planes.first.bytes;
+      final rowStride = image.planes.first.bytesPerRow;
+      return _signatureFromRgbPixels(
+        width: image.width,
+        height: image.height,
+        readRgb: (x, y) {
+          final pixelIndex = y * rowStride + x * 4;
+          return _RgbColor(
+            pixels[pixelIndex + 2] / 255,
+            pixels[pixelIndex + 1] / 255,
+            pixels[pixelIndex] / 255,
+          );
+        },
+      );
+    }
+
+    if (image.format.group != ImageFormatGroup.yuv420 ||
+        image.planes.length < 3) {
+      throw StateError('Unsupported camera image format.');
+    }
+
+    final yPlane = image.planes[0];
+    final uPlane = image.planes[1];
+    final vPlane = image.planes[2];
+    final uvPixelStride = uPlane.bytesPerPixel ?? 1;
+
+    return _signatureFromRgbPixels(
+      width: image.width,
+      height: image.height,
+      readRgb: (x, y) {
+        final yIndex = y * yPlane.bytesPerRow + x;
+        final uvIndex =
+            (y ~/ 2) * uPlane.bytesPerRow + (x ~/ 2) * uvPixelStride;
+        final luminance = yPlane.bytes[yIndex].toDouble();
+        final u = uPlane.bytes[uvIndex].toDouble() - 128;
+        final v = vPlane.bytes[uvIndex].toDouble() - 128;
+
+        final red = (luminance + 1.402 * v).clamp(0, 255) / 255;
+        final green =
+            (luminance - 0.344136 * u - 0.714136 * v).clamp(0, 255) / 255;
+        final blue = (luminance + 1.772 * u).clamp(0, 255) / 255;
+        return _RgbColor(red.toDouble(), green.toDouble(), blue.toDouble());
+      },
+    );
+  }
+
+  _ImageSignature _signatureFromRgbPixels({
+    required int width,
+    required int height,
+    required _RgbReader readRgb,
+  }) {
     final hueHistogram = List<double>.filled(12, 0);
     final regionSums = List<double>.filled(27, 0);
     final counts = List<int>.filled(9, 0);
@@ -332,14 +533,13 @@ class _ARScreenState extends State<ARScreen> {
     var cyanScore = 0.0;
     var deepBlueScore = 0.0;
     var totalPixels = 0;
+    final xStep = math.max(2, width ~/ 96);
+    final yStep = math.max(2, height ~/ 96);
 
-    for (var y = 0; y < height; y += 2) {
-      for (var x = 0; x < width; x += 2) {
-        final pixelIndex = (y * width + x) * 4;
-        final red = pixels[pixelIndex] / 255;
-        final green = pixels[pixelIndex + 1] / 255;
-        final blue = pixels[pixelIndex + 2] / 255;
-        final hsv = _rgbToHsv(red, green, blue);
+    for (var y = 0; y < height; y += yStep) {
+      for (var x = 0; x < width; x += xStep) {
+        final rgb = readRgb(x, y);
+        final hsv = _rgbToHsv(rgb.red, rgb.green, rgb.blue);
         totalPixels++;
 
         final palePixel = hsv.saturation < 0.18 && hsv.value > 0.68;
@@ -410,15 +610,13 @@ class _ARScreenState extends State<ARScreen> {
         hueY += math.sin(hueRadians) * hsv.saturation;
         saturationSum += hsv.saturation;
         valueSum += hsv.value;
-        regionSums[featureIndex] += red;
-        regionSums[featureIndex + 1] += green;
-        regionSums[featureIndex + 2] += blue;
+        regionSums[featureIndex] += rgb.red;
+        regionSums[featureIndex + 1] += rgb.green;
+        regionSums[featureIndex + 2] += rgb.blue;
         counts[region]++;
         usefulPixels++;
       }
     }
-
-    image.dispose();
 
     if (usefulPixels == 0) {
       throw StateError('Could not find enough food pixels in image.');
@@ -522,9 +720,11 @@ class _ARScreenState extends State<ARScreen> {
                   scannedFoodImagePath: _scannedFoodImagePath,
                   scannerMessage: _scannerMessage,
                   isMatchingFood: _isMatchingFood,
+                  isLiveScannerLoading: _isLiveScannerLoading,
+                  liveCameraController: _cameraController,
                   onSelected: (food) => setState(() => _selectedFood = food),
-                  onScanFood: () => _scanFood(ImageSource.camera),
                   onChoosePhoto: () => _scanFood(ImageSource.gallery),
+                  onRestartLiveScanner: _restartLiveScanner,
                   onViewInAR: _openShowcase,
                 )
               : _ARFoodShowcaseView(
@@ -578,6 +778,16 @@ class _HsvColor {
   final double hue;
   final double saturation;
   final double value;
+}
+
+typedef _RgbReader = _RgbColor Function(int x, int y);
+
+class _RgbColor {
+  const _RgbColor(this.red, this.green, this.blue);
+
+  final double red;
+  final double green;
+  final double blue;
 }
 
 class _ImageSignature {
@@ -651,9 +861,11 @@ class _FoodSelectionView extends StatelessWidget {
     required this.scannedFoodImagePath,
     required this.scannerMessage,
     required this.isMatchingFood,
+    required this.isLiveScannerLoading,
+    required this.liveCameraController,
     required this.onSelected,
-    required this.onScanFood,
     required this.onChoosePhoto,
+    required this.onRestartLiveScanner,
     required this.onViewInAR,
   });
 
@@ -662,9 +874,11 @@ class _FoodSelectionView extends StatelessWidget {
   final String? scannedFoodImagePath;
   final String? scannerMessage;
   final bool isMatchingFood;
+  final bool isLiveScannerLoading;
+  final CameraController? liveCameraController;
   final ValueChanged<ARFoodDish> onSelected;
-  final VoidCallback onScanFood;
   final VoidCallback onChoosePhoto;
+  final VoidCallback onRestartLiveScanner;
   final VoidCallback onViewInAR;
 
   @override
@@ -681,16 +895,20 @@ class _FoodSelectionView extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Scan a food photo or select a Perlis food manually, then open the AR showcase.',
+          'Point your camera at food and the app will detect the closest Perlis dish automatically.',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 18),
         _ScannerCard(
+          detectedFood: selectedFood,
           scannedFoodImagePath: scannedFoodImagePath,
           scannerMessage: scannerMessage,
           isMatchingFood: isMatchingFood,
-          onScanFood: onScanFood,
+          isLiveScannerLoading: isLiveScannerLoading,
+          liveCameraController: liveCameraController,
           onChoosePhoto: onChoosePhoto,
+          onRestartLiveScanner: onRestartLiveScanner,
+          onViewInAR: onViewInAR,
         ),
         const SizedBox(height: 18),
         DropdownButtonFormField<ARFoodDish>(
@@ -706,17 +924,6 @@ class _FoodSelectionView extends StatelessWidget {
               onSelected(food);
             }
           },
-        ),
-        const SizedBox(height: 18),
-        _FoodPreviewCard(food: selectedFood),
-        const SizedBox(height: 18),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: isMatchingFood ? null : onViewInAR,
-            icon: const Icon(Icons.view_in_ar_outlined),
-            label: const Text('View in AR'),
-          ),
         ),
         const SizedBox(height: 18),
         ...foods.map(
@@ -736,21 +943,31 @@ class _FoodSelectionView extends StatelessWidget {
 
 class _ScannerCard extends StatelessWidget {
   const _ScannerCard({
+    required this.detectedFood,
     required this.scannedFoodImagePath,
     required this.scannerMessage,
     required this.isMatchingFood,
-    required this.onScanFood,
+    required this.isLiveScannerLoading,
+    required this.liveCameraController,
     required this.onChoosePhoto,
+    required this.onRestartLiveScanner,
+    required this.onViewInAR,
   });
 
+  final ARFoodDish detectedFood;
   final String? scannedFoodImagePath;
   final String? scannerMessage;
   final bool isMatchingFood;
-  final VoidCallback onScanFood;
+  final bool isLiveScannerLoading;
+  final CameraController? liveCameraController;
   final VoidCallback onChoosePhoto;
+  final VoidCallback onRestartLiveScanner;
+  final VoidCallback onViewInAR;
 
   @override
   Widget build(BuildContext context) {
+    final liveController = liveCameraController;
+
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.warmWhite,
@@ -761,29 +978,96 @@ class _ScannerCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           AspectRatio(
-            aspectRatio: 1.45,
+            aspectRatio: 0.72,
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(8),
               ),
-              child: scannedFoodImagePath == null
-                  ? Container(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (scannedFoodImagePath != null)
+                    Image.file(File(scannedFoodImagePath!), fit: BoxFit.cover)
+                  else if (liveController != null &&
+                      liveController.value.isInitialized)
+                    CameraPreview(liveController)
+                  else
+                    Container(
                       color: AppTheme.blush,
-                      child: const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.document_scanner_outlined, size: 46),
-                            SizedBox(height: 10),
-                            Text(
-                              'Scan food image',
-                              style: TextStyle(fontWeight: FontWeight.w900),
+                      child: Center(
+                        child: isLiveScannerLoading
+                            ? const CircularProgressIndicator()
+                            : const Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.videocam_off_outlined, size: 46),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    'Live camera unavailable',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.12),
+                          Colors.black.withValues(alpha: 0.2),
+                          Colors.black.withValues(alpha: 0.76),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.72),
+                              width: 2,
                             ),
-                          ],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
                       ),
-                    )
-                  : Image.file(File(scannedFoodImagePath!), fit: BoxFit.cover),
+                    ),
+                  ),
+                  Positioned(
+                    left: 22,
+                    top: 28,
+                    child: _TrackingMarker(color: detectedFood.color),
+                  ),
+                  Positioned(
+                    left: 30,
+                    top: 96,
+                    width: 2,
+                    height: 86,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.78),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 16,
+                    child: _LiveDetectionOverlay(
+                      food: detectedFood,
+                      onViewInAR: onViewInAR,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           Padding(
@@ -794,7 +1078,7 @@ class _ScannerCard extends StatelessWidget {
                 Text(
                   scannerMessage ??
                       (scannedFoodImagePath == null
-                          ? 'Use the camera scanner or choose an existing photo.'
+                          ? 'Point the camera at a dish and hold steady.'
                           : 'Photo scanned. The closest local food is selected below.'),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.mutedBrown,
@@ -806,8 +1090,10 @@ class _ScannerCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: isMatchingFood ? null : onScanFood,
-                        icon: isMatchingFood
+                        onPressed: isLiveScannerLoading
+                            ? null
+                            : onRestartLiveScanner,
+                        icon: isLiveScannerLoading
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
@@ -816,8 +1102,10 @@ class _ScannerCard extends StatelessWidget {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(Icons.camera_alt_outlined),
-                        label: Text(isMatchingFood ? 'Matching...' : 'Scan'),
+                            : const Icon(Icons.center_focus_strong_outlined),
+                        label: Text(
+                          isLiveScannerLoading ? 'Starting...' : 'Live Detect',
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -832,6 +1120,197 @@ class _ScannerCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LiveDetectionOverlay extends StatelessWidget {
+  const _LiveDetectionOverlay({required this.food, required this.onViewInAR});
+
+  final ARFoodDish food;
+  final VoidCallback onViewInAR;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: food.color.withValues(alpha: 0.5),
+          width: 1.4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.22),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: food.color.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.auto_awesome_rounded,
+                    color: food.color,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    food.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppTheme.cocoa,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              food.shortDescription,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.mutedBrown,
+                height: 1.3,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              food.culturalStory,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.cocoa,
+                height: 1.28,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                ...food.ingredients
+                    .take(3)
+                    .map(
+                      (ingredient) => _OverlayChip(
+                        icon: Icons.restaurant_menu_rounded,
+                        label: ingredient,
+                      ),
+                    ),
+                ...food.allergens
+                    .take(2)
+                    .map(
+                      (allergen) => _OverlayChip(
+                        icon: Icons.warning_amber_rounded,
+                        label: allergen,
+                        warning: true,
+                      ),
+                    ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onViewInAR,
+                icon: const Icon(Icons.view_in_ar_outlined),
+                label: const Text('Open AR View'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OverlayChip extends StatelessWidget {
+  const _OverlayChip({
+    required this.icon,
+    required this.label,
+    this.warning = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = warning ? Colors.red.shade800 : AppTheme.cocoa;
+    final background = warning
+        ? Colors.red.withValues(alpha: 0.08)
+        : AppTheme.amber.withValues(alpha: 0.18);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 14),
+            const SizedBox(width: 5),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrackingMarker extends StatelessWidget {
+  const _TrackingMarker({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.34),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Icon(Icons.center_focus_strong_rounded, color: color, size: 28),
       ),
     );
   }
