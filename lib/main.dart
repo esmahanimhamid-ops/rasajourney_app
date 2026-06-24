@@ -8,6 +8,7 @@ import 'screens/ar_screen.dart';
 import 'screens/favourites_screen.dart';
 import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/main_nav_scope.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,29 +69,32 @@ class _MainNavState extends State<MainNav> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppTheme.cream, AppTheme.warmWhite],
+    return MainNavScope(
+      goHome: () => setState(() => _index = 0),
+      child: Scaffold(
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [AppTheme.cream, AppTheme.warmWhite],
+            ),
           ),
+          child: IndexedStack(index: _index, children: _screens),
         ),
-        child: IndexedStack(index: _index, children: _screens),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.map), label: 'Explore'),
-          NavigationDestination(icon: Icon(Icons.camera_alt), label: 'AR'),
-          NavigationDestination(
-            icon: Icon(Icons.favorite),
-            label: 'Favourites',
-          ),
-        ],
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (i) => setState(() => _index = i),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.map), label: 'Explore'),
+            NavigationDestination(icon: Icon(Icons.camera_alt), label: 'AR'),
+            NavigationDestination(
+              icon: Icon(Icons.favorite),
+              label: 'Favourites',
+            ),
+          ],
+        ),
       ),
     );
   }

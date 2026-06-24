@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../widgets/main_nav_scope.dart';
+import '../widgets/smart_back_button.dart';
 import 'explore_screen.dart';
 import 'favourites_screen.dart';
 
@@ -12,31 +14,31 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isSmallPhone = size.width < 380;
-    final heroTitleSize = isSmallPhone ? 36.0 : 44.0;
+    final width = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = width >= 720 ? 36.0 : 20.0;
 
     return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: _FoodPromoBackground()),
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+      backgroundColor: const Color(0xFFFBF7F1),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                18,
+                horizontalPadding,
+                28,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: Center(
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: constraints.maxHeight,
-                    ),
+                    constraints: const BoxConstraints(maxWidth: 920),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const _HomeHeader(),
-                        const SizedBox(height: 28),
-                        _HeroSpotlight(titleSize: heroTitleSize),
                         const SizedBox(height: 22),
-                        _PrimaryActions(
+                        _ProfessionalHero(
                           onExplore: () => Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -50,87 +52,19 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        const _PromotionStrip(),
-                        const SizedBox(height: 16),
-                        const _FeatureGrid(),
+                        const SizedBox(height: 18),
+                        const _DecisionPanel(),
+                        const SizedBox(height: 18),
+                        const _JourneyPreview(),
                       ],
                     ),
                   ),
-                );
-              },
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FoodPromoBackground extends StatelessWidget {
-  const _FoodPromoBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF8F3), Color(0xFFFFEEE2), Color(0xFFEFF7EF)],
+          ],
         ),
       ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: const [
-          _BackgroundDoodle(
-            icon: Icons.ramen_dining_rounded,
-            alignment: Alignment(-1.04, -0.66),
-            size: 132,
-            color: Color(0xFFD45720),
-          ),
-          _BackgroundDoodle(
-            icon: Icons.local_dining_rounded,
-            alignment: Alignment(1.08, -0.28),
-            size: 118,
-            color: Color(0xFF2A9D8F),
-          ),
-          _BackgroundDoodle(
-            icon: Icons.set_meal_rounded,
-            alignment: Alignment(-1.02, 0.52),
-            size: 128,
-            color: Color(0xFFF0A43B),
-          ),
-          _BackgroundDoodle(
-            icon: Icons.local_cafe_rounded,
-            alignment: Alignment(0.92, 0.9),
-            size: 112,
-            color: Color(0xFF6A994E),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BackgroundDoodle extends StatelessWidget {
-  const _BackgroundDoodle({
-    required this.icon,
-    required this.alignment,
-    required this.size,
-    required this.color,
-  });
-
-  final IconData icon;
-  final Alignment alignment;
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: alignment,
-      child: Icon(icon, size: size, color: color.withValues(alpha: 0.08)),
     );
   }
 }
@@ -140,8 +74,12 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final navScope = MainNavScope.maybeOf(context);
+
     return Row(
       children: [
+        SmartBackButton(fallback: navScope?.goHome),
+        const SizedBox(width: 4),
         const _BrandAssetIcon(size: 44, borderRadius: 8),
         const SizedBox(width: 12),
         const Expanded(
@@ -158,8 +96,9 @@ class _HomeHeader extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
+              SizedBox(height: 2),
               Text(
-                'Perlis food discovery',
+                'Curated Perlis food discovery',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -170,219 +109,239 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ),
-        const _HeaderBadge(),
+        const _TrustBadge(),
       ],
     );
   }
 }
 
-class _HeaderBadge extends StatelessWidget {
-  const _HeaderBadge();
+class _TrustBadge extends StatelessWidget {
+  const _TrustBadge();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A9D8F).withValues(alpha: 0.1),
+        color: const Color(0xFF226B5F).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: const Color(0xFF2A9D8F).withValues(alpha: 0.18),
+          color: const Color(0xFF226B5F).withValues(alpha: 0.16),
         ),
       ),
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.verified_rounded, color: Color(0xFF2A9D8F), size: 16),
-            SizedBox(width: 5),
-            Text(
-              'Local',
-              style: TextStyle(
-                color: Color(0xFF1F7A70),
-                fontWeight: FontWeight.w900,
-              ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified_rounded, color: Color(0xFF226B5F), size: 16),
+          SizedBox(width: 5),
+          Text(
+            'Local',
+            style: TextStyle(
+              color: Color(0xFF226B5F),
+              fontWeight: FontWeight.w900,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _HeroSpotlight extends StatelessWidget {
-  const _HeroSpotlight({required this.titleSize});
+class _ProfessionalHero extends StatelessWidget {
+  const _ProfessionalHero({required this.onExplore, required this.onJournal});
+
+  final VoidCallback onExplore;
+  final VoidCallback onJournal;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final titleSize = width < 380 ? 32.0 : 40.0;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 760;
+        final image = _HeroImageStack(compact: !wide);
+        final copy = _HeroCopy(
+          titleSize: titleSize,
+          onExplore: onExplore,
+          onJournal: onJournal,
+        );
+
+        if (!wide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [image, const SizedBox(height: 20), copy],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(flex: 6, child: copy),
+            const SizedBox(width: 28),
+            Expanded(flex: 5, child: image),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HeroCopy extends StatelessWidget {
+  const _HeroCopy({
+    required this.titleSize,
+    required this.onExplore,
+    required this.onJournal,
+  });
 
   final double titleSize;
+  final VoidCallback onExplore;
+  final VoidCallback onJournal;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _HeroVisual(),
-        const SizedBox(height: 26),
-        const _Eyebrow(label: 'Taste Perlis like a local'),
-        const SizedBox(height: 10),
+        const _Eyebrow(label: 'Perlis gastronomy guide'),
+        const SizedBox(height: 12),
         Text(
-          'Discover food worth travelling for.',
+          'Plan a food trip that feels local from the first stop.',
           style: TextStyle(
             color: AppTheme.cocoa,
             fontSize: titleSize,
-            height: 1.02,
+            height: 1.06,
             fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(height: 14),
         Text(
-          'Find hidden restaurants, promote local flavours, save favourite places, and bring signature dishes to life with AR food stories.',
+          'Explore trusted restaurants, signature dishes, saved favourites, and AR food stories designed for confident decisions before you arrive.',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppTheme.mutedBrown,
+            color: const Color(0xFF6D584E),
             fontSize: 16,
-            height: 1.5,
+            height: 1.48,
             fontWeight: FontWeight.w600,
           ),
         ),
+        const SizedBox(height: 18),
+        _PrimaryActions(onExplore: onExplore, onJournal: onJournal),
+        const SizedBox(height: 18),
+        const _MetricRow(),
       ],
     );
   }
 }
 
-class _HeroVisual extends StatelessWidget {
-  const _HeroVisual();
+class _HeroImageStack extends StatelessWidget {
+  const _HeroImageStack({required this.compact});
+
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: 1.28,
+      aspectRatio: compact ? 1.1 : 0.95,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.74),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.sand),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.clay.withValues(alpha: 0.12),
-                    blurRadius: 28,
-                    offset: const Offset(0, 18),
-                  ),
-                ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/images/laksa_perlis.jpg',
+                fit: BoxFit.cover,
               ),
             ),
           ),
-          const Positioned(
-            left: 18,
-            top: 18,
-            child: _FloatingTag(
-              icon: Icons.local_fire_department_rounded,
-              label: 'Trending eats',
-              color: Color(0xFFD45720),
-            ),
-          ),
-          const Positioned(
-            right: 18,
-            top: 18,
-            child: _FloatingTag(
-              icon: Icons.view_in_ar_rounded,
-              label: 'AR stories',
-              color: Color(0xFF2A9D8F),
-            ),
-          ),
-          const Center(child: _FoodPlateIllustration()),
-          Positioned(
-            left: 18,
-            right: 18,
-            bottom: 18,
+          Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: AppTheme.cocoa.withValues(alpha: 0.92),
                 borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(
-                  children: [
-                    Icon(Icons.place_rounded, color: Color(0xFFFFD166)),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Curated restaurants, local dishes, and personal food trails in one place.',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          height: 1.25,
-                        ),
-                      ),
-                    ),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.05),
+                    Colors.black.withValues(alpha: 0.52),
                   ],
                 ),
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FoodPlateIllustration extends StatelessWidget {
-  const _FoodPlateIllustration();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 230,
-      height: 230,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 218,
-            height: 218,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFFFFE7D8),
-              border: Border.all(color: Colors.white, width: 10),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 18,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 136,
-            height: 136,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFC36A), Color(0xFFD45720)],
+          Positioned(
+            left: 14,
+            right: 14,
+            bottom: 14,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.94),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.16),
+                    blurRadius: 22,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: const Row(
+                children: [
+                  _SignalIcon(
+                    icon: Icons.restaurant_menu_rounded,
+                    color: AppTheme.clay,
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Laksa Perlis',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppTheme.cocoa,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'A local flavour cue before the map opens.',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppTheme.mutedBrown,
+                            fontWeight: FontWeight.w700,
+                            height: 1.28,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const Icon(Icons.ramen_dining_rounded, color: Colors.white, size: 78),
-          const _OrbitIcon(
-            icon: Icons.set_meal_rounded,
-            alignment: Alignment(-0.94, -0.18),
-            color: Color(0xFF2A9D8F),
+          Positioned(
+            top: 14,
+            left: 14,
+            child: _ImagePill(
+              icon: Icons.auto_awesome_rounded,
+              label: 'Curated',
+              color: AppTheme.amber,
+            ),
           ),
-          const _OrbitIcon(
-            icon: Icons.icecream_rounded,
-            alignment: Alignment(0.86, -0.36),
-            color: Color(0xFFFFB4A2),
-          ),
-          const _OrbitIcon(
-            icon: Icons.local_cafe_rounded,
-            alignment: Alignment(0.58, 0.86),
-            color: Color(0xFF6A994E),
+          Positioned(
+            right: -8,
+            top: compact ? 18 : 34,
+            child: _SmallPhoto(
+              asset: 'assets/images/ikan bakar kuala perlis.jpeg',
+              label: 'Coastal grill',
+            ),
           ),
         ],
       ),
@@ -390,44 +349,58 @@ class _FoodPlateIllustration extends StatelessWidget {
   }
 }
 
-class _OrbitIcon extends StatelessWidget {
-  const _OrbitIcon({
-    required this.icon,
-    required this.alignment,
-    required this.color,
-  });
+class _SmallPhoto extends StatelessWidget {
+  const _SmallPhoto({required this.asset, required this.label});
 
-  final IconData icon;
-  final Alignment alignment;
-  final Color color;
+  final String asset;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: alignment,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 14,
-              offset: const Offset(0, 7),
+    return Container(
+      width: 118,
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: AspectRatio(
+              aspectRatio: 1.28,
+              child: Image.asset(asset, fit: BoxFit.cover),
             ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Icon(icon, color: color, size: 28),
-        ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppTheme.cocoa,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _FloatingTag extends StatelessWidget {
-  const _FloatingTag({
+class _ImagePill extends StatelessWidget {
+  const _ImagePill({
     required this.icon,
     required this.label,
     required this.color,
@@ -439,25 +412,25 @@ class _FloatingTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: Colors.white.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(color: color, fontWeight: FontWeight.w900),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.cocoa,
+              fontWeight: FontWeight.w900,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -470,19 +443,17 @@ class _Eyebrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: AppTheme.amber.withValues(alpha: 0.16),
+        color: AppTheme.amber.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        child: Text(
-          label,
-          style: const TextStyle(
-            color: AppTheme.cocoa,
-            fontWeight: FontWeight.w900,
-          ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppTheme.cocoa,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );
@@ -533,63 +504,68 @@ class _PrimaryActions extends StatelessWidget {
   }
 }
 
-class _PromotionStrip extends StatelessWidget {
-  const _PromotionStrip();
+class _MetricRow extends StatelessWidget {
+  const _MetricRow();
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppTheme.cocoa,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Padding(
-        padding: EdgeInsets.all(16),
-        child: Row(
-          children: [
-            _PromoStat(value: '50+', label: 'local spots'),
-            _PromoDivider(),
-            _PromoStat(value: 'AR', label: 'food labels'),
-            _PromoDivider(),
-            _PromoStat(value: 'Perlis', label: 'curated trail'),
-          ],
+    return const Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _MetricChip(
+          icon: Icons.storefront_rounded,
+          value: '50+',
+          label: 'spots',
         ),
-      ),
+        _MetricChip(icon: Icons.place_rounded, value: 'Perlis', label: 'trail'),
+        _MetricChip(
+          icon: Icons.view_in_ar_rounded,
+          value: 'AR',
+          label: 'stories',
+        ),
+      ],
     );
   }
 }
 
-class _PromoStat extends StatelessWidget {
-  const _PromoStat({required this.value, required this.label});
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
 
+  final IconData icon;
   final String value;
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.sand),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Icon(icon, size: 17, color: AppTheme.clay),
+          const SizedBox(width: 7),
           Text(
             value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
+              color: AppTheme.cocoa,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(width: 4),
           Text(
             label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.72),
-              fontSize: 12,
+            style: const TextStyle(
+              color: AppTheme.mutedBrown,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -599,68 +575,50 @@ class _PromoStat extends StatelessWidget {
   }
 }
 
-class _PromoDivider extends StatelessWidget {
-  const _PromoDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 38,
-      color: Colors.white.withValues(alpha: 0.16),
-    );
-  }
-}
-
-class _FeatureGrid extends StatelessWidget {
-  const _FeatureGrid();
+class _DecisionPanel extends StatelessWidget {
+  const _DecisionPanel();
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useTwoColumns = constraints.maxWidth >= 390;
-        final tiles = const [
-          _FeatureTile(
-            icon: Icons.storefront_rounded,
-            title: 'Promote local restaurants',
-            description: 'Spotlight places that travellers should not miss.',
+        final wide = constraints.maxWidth >= 720;
+        final cards = const [
+          _DecisionCard(
+            icon: Icons.visibility_rounded,
+            title: 'See the dish first',
+            description: 'Real food photography creates instant appetite.',
             color: Color(0xFFD45720),
           ),
-          _FeatureTile(
+          _DecisionCard(
+            icon: Icons.tune_rounded,
+            title: 'Choose with clarity',
+            description:
+                'Location, cuisine, halal status, and saves stay easy.',
+            color: Color(0xFF226B5F),
+          ),
+          _DecisionCard(
             icon: Icons.favorite_rounded,
-            title: 'Save personal picks',
-            description: 'Build a shortlist for your next makan trip.',
-            color: Color(0xFFE76F51),
-          ),
-          _FeatureTile(
-            icon: Icons.rate_review_rounded,
-            title: 'Review honestly',
-            description: 'Keep useful notes from real food visits.',
-            color: Color(0xFF2A9D8F),
-          ),
-          _FeatureTile(
-            icon: Icons.view_in_ar_rounded,
-            title: 'Preview food in AR',
-            description: 'See dish info as a camera overlay.',
-            color: Color(0xFF6A994E),
+            title: 'Build your story',
+            description: 'Favourites turn each visit into a personal trail.',
+            color: Color(0xFF9D4F3F),
           ),
         ];
 
-        if (!useTwoColumns) {
+        if (!wide) {
           return Column(
             children: [
-              for (final tile in tiles) ...[tile, const SizedBox(height: 10)],
+              for (final card in cards) ...[card, const SizedBox(height: 10)],
             ],
           );
         }
 
-        return Wrap(
-          spacing: 10,
-          runSpacing: 10,
+        return Row(
           children: [
-            for (final tile in tiles)
-              SizedBox(width: (constraints.maxWidth - 10) / 2, child: tile),
+            for (var index = 0; index < cards.length; index++) ...[
+              Expanded(child: cards[index]),
+              if (index != cards.length - 1) const SizedBox(width: 10),
+            ],
           ],
         );
       },
@@ -668,8 +626,8 @@ class _FeatureGrid extends StatelessWidget {
   }
 }
 
-class _FeatureTile extends StatelessWidget {
-  const _FeatureTile({
+class _DecisionCard extends StatelessWidget {
+  const _DecisionCard({
     required this.icon,
     required this.title,
     required this.description,
@@ -683,54 +641,167 @@ class _FeatureTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.78),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppTheme.sand),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(9),
-                child: Icon(icon, color: color, size: 22),
-              ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SignalIcon(icon: icon, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.cocoa,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppTheme.mutedBrown,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppTheme.cocoa,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                height: 1.16,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppTheme.mutedBrown,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.28,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _JourneyPreview extends StatelessWidget {
+  const _JourneyPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2F241F),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 640;
+          final text = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'A calmer way to explore Perlis food',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Start with appetite, narrow the choice, then keep the places that become part of your travel memory.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.76),
+                  fontWeight: FontWeight.w600,
+                  height: 1.45,
+                ),
+              ),
+            ],
+          );
+          final photos = const _PhotoStrip();
+
+          if (!wide) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [text, const SizedBox(height: 16), photos],
+            );
+          }
+
+          return Row(
+            children: [
+              Expanded(child: text),
+              const SizedBox(width: 18),
+              const SizedBox(width: 320, child: _PhotoStrip()),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PhotoStrip extends StatelessWidget {
+  const _PhotoStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: const [
+        Expanded(child: _StripPhoto(asset: 'assets/images/nasi_kandar.jpg')),
+        SizedBox(width: 8),
+        Expanded(
+          child: _StripPhoto(asset: 'assets/images/harum manis perlis.jpeg'),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: _StripPhoto(asset: 'assets/images/pulut harum manis.jpg'),
+        ),
+      ],
+    );
+  }
+}
+
+class _StripPhoto extends StatelessWidget {
+  const _StripPhoto({required this.asset});
+
+  final String asset;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: AspectRatio(
+        aspectRatio: 0.88,
+        child: Image.asset(asset, fit: BoxFit.cover),
+      ),
+    );
+  }
+}
+
+class _SignalIcon extends StatelessWidget {
+  const _SignalIcon({required this.icon, required this.color});
+
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(icon, color: color, size: 22),
     );
   }
 }

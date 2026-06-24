@@ -13,6 +13,8 @@ import '../services/restaurant_cleanup_service.dart';
 import '../services/restaurant_import_service.dart';
 import '../services/user_content_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/main_nav_scope.dart';
+import '../widgets/smart_back_button.dart';
 import 'restaurant_detail_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -858,6 +860,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: SmartBackButton(fallback: MainNavScope.maybeOf(context)?.goHome),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

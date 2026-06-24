@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../widgets/smart_back_button.dart';
 import '../theme/app_theme.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -129,6 +130,7 @@ class _AuthScreenState extends State<AuthScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const SmartBackButton(),
         title: Text(_isLogin ? 'Login' : 'Create Account'),
       ),
       body: Center(

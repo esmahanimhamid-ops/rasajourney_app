@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/restaurant.dart';
 import '../services/google_places_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/smart_back_button.dart';
 import 'ar_screen.dart';
 
 class RestaurantDetailScreen extends StatefulWidget {
@@ -132,7 +133,10 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
     final galleryImages = restaurant.galleryImages;
 
     return Scaffold(
-      appBar: AppBar(title: Text(restaurant.name)),
+      appBar: AppBar(
+        leading: const SmartBackButton(),
+        title: Text(restaurant.name),
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(

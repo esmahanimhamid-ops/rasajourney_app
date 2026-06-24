@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../models/restaurant.dart';
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
+import '../widgets/main_nav_scope.dart';
+import '../widgets/smart_back_button.dart';
 import 'auth_screen.dart';
 import 'profile_screen.dart';
 import 'restaurant_detail_screen.dart';
@@ -24,6 +26,9 @@ class FavouritesScreen extends StatelessWidget {
           return Scaffold(
             backgroundColor: const Color(0xFFFFF8F3),
             appBar: AppBar(
+              leading: SmartBackButton(
+                fallback: MainNavScope.maybeOf(context)?.goHome,
+              ),
               title: const Text('My Food Journal'),
               backgroundColor: const Color(0xFFFFF8F3),
               foregroundColor: const Color(0xFF4A2D24),
@@ -38,6 +43,9 @@ class FavouritesScreen extends StatelessWidget {
         return Scaffold(
           backgroundColor: const Color(0xFFFFF8F3),
           appBar: AppBar(
+            leading: SmartBackButton(
+              fallback: MainNavScope.maybeOf(context)?.goHome,
+            ),
             title: const Text('My Food Journal'),
             backgroundColor: const Color(0xFFFFF8F3),
             foregroundColor: const Color(0xFF4A2D24),

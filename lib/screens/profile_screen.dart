@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user_profile.dart';
 import '../services/auth_service.dart';
+import '../widgets/smart_back_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -118,6 +119,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8F3),
       appBar: AppBar(
+        leading: const SmartBackButton(),
         title: const Text('Your Profile'),
         backgroundColor: const Color(0xFFFFF8F3),
         foregroundColor: const Color(0xFF4A2D24),

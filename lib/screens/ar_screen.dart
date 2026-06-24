@@ -9,6 +9,8 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/restaurant.dart';
 import '../theme/app_theme.dart';
+import '../widgets/main_nav_scope.dart';
+import '../widgets/smart_back_button.dart';
 
 class ARScreen extends StatefulWidget {
   const ARScreen({super.key, this.initialFoodId});
@@ -700,6 +702,7 @@ class _ARScreenState extends State<ARScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: SmartBackButton(fallback: MainNavScope.maybeOf(context)?.goHome),
         title: Text(
           showcaseFood == null ? 'AR Food Showcase' : showcaseFood.name,
         ),
